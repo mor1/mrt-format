@@ -70,6 +70,29 @@ let print_bgp4mp subtype pkt =
     | _ -> ()
   )
 
+let print_table subtype pkt = 
+  Afi.(Table.(match subtype with
+    | IP4 ->
+        printf "\tviewno:%d seqno:%d status:%d otime:%ld\n" 
+          (get_h4_viewno pkt) (get_h4_seqno pkt) 
+          (get_h4_status pkt) (get_h4_otime pkt);
+        printf "\tpeer_ip:%s peer_as:%d prefix:%s/%d\n%!"
+          (IPv4 (get_h4_peer_ip pkt) |> ip_to_string) 
+          (get_h4_peer_as pkt)
+          (IPv4 (get_h4_prefix pkt) |> ip_to_string) (get_h4_pfxlen pkt)
+
+    | IP6 ->
+        printf "\tviewno:%d seqno:%d status:%d otime:%ld\n" 
+          (get_h6_viewno pkt) (get_h6_seqno pkt) 
+          (get_h6_status pkt) (get_h6_otime pkt);
+        printf "\tpeer_ip:%s peer_as:%d prefix:%s/%d\n%!"
+          (IPv6 ((get_h6_peer_ip_hi pkt), (get_h6_peer_ip_lo pkt))
+              |> ip_to_string)
+          (get_h6_peer_as pkt)
+          (IPv6 ((get_h6_prefix_hi pkt), (get_h6_prefix_lo pkt))
+              |> ip_to_string) (get_h6_pfxlen pkt)
+  ))
+
 let rec print_packets buf = 
   incr npackets;
   
@@ -80,6 +103,7 @@ let rec print_packets buf =
   printf "#%d %s\n%!" !npackets (h_to_string h);
   (match (get_h_mrttype h |> int_to_t) with
     | Bgp4mp -> print_bgp4mp (h |> get_h_subtype |> Bgp4mp.int_to_t) p
+    | Table  -> print_table  (h |> get_h_subtype |> Afi.int_to_t) p
     | _      -> invalid_arg "mrttype"
   );
   if Cstruct.len rest > 0 then print_packets rest

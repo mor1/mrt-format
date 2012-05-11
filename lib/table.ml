@@ -23,7 +23,7 @@ cstruct h4 {
   uint32_t otime;
   uint32_t peer_ip;
   uint16_t peer_as;
-  uint16_t alen
+  uint16_t attrlen
 } as big_endian
 
 cstruct h6 {
@@ -37,17 +37,5 @@ cstruct h6 {
   uint64_t peer_ip_hi;
   uint64_t peer_ip_lo;
   uint16_t peer_as;
-  uint16_t alen
+  uint16_t attrlen
 } as big_endian
-
-type t = IP4 | IP6
-let t_to_int = function
-  | IP4 -> 1
-  | IP6 -> 2
-and int_to_t = function
-  | 1 -> IP4
-  | 2 -> IP6
-  | _ -> invalid_arg "int_to_t"      
-and t_to_string = function
-  | IP4 -> "IPv4"
-  | IP6 -> "IPv6"      

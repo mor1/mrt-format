@@ -64,7 +64,8 @@ let h_to_string h =
   let subtype =
     let st = (get_h_subtype h) in match mrttype with
       | Bgp4mp -> Bgp4mp.(st |> int_to_t |> t_to_string)
-      | _ -> invalid_arg "h_to_string"
+      | Table  -> Afi.(st |> int_to_t |> t_to_string)
+      | t      -> invalid_arg (sprintf "h_to_string (%s)" (t_to_string t))
   in          
   sprintf "%ld %s/%s %ld"
     (get_h_ts_sec h) (t_to_string mrttype) subtype (get_h_length h);
