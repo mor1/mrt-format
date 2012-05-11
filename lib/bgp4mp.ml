@@ -13,6 +13,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
+
+open Printf
     
 type t = State | Message | Message_as4 | State_as4 | Local | Local_as4
 let t_to_int = function
@@ -37,21 +39,25 @@ and t_to_string = function
   | State_as4 -> "STATE_CHANGE_AS4"
   | Local -> "MESSAGE_LOCAL"
   | Local_as4 -> "MESSAGE_AS4_LOCAL"
-    
-cstruct h4 {
+
+type asn = Asn of int | Asn4 of int32
+let asn_to_string = function
+  | Asn a -> sprintf "%d" a
+  | Asn4 a -> sprintf "%ld" a
+
+cstruct h {
   uint16_t peer_as;
   uint16_t local_as;
   uint16_t ifc;
-  uint16_t afi;
+  uint16_t afi
+} as big_endian
+
+cstruct h4 {
   uint32_t peer_ip;
   uint32_t local_ip
 } as big_endian
 
 cstruct h6 {
-  uint16_t peer_as;
-  uint16_t local_as;
-  uint16_t ifc;
-  uint16_t afi;
   uint64_t peer_ip_hi;
   uint64_t peer_ip_lo;
   uint64_t local_ip_hi;
@@ -63,20 +69,19 @@ cstruct state_change {
   uint16_t newstate
 } as big_endian
 
-cstruct h4_as4 {
+cstruct h_as4 {
   uint32_t peer_as;
   uint32_t local_as;
   uint16_t ifc;
-  uint16_t afi;
+  uint16_t afi
+} as big_endian
+
+cstruct h4_as4 {
   uint32_t peer_ip;
   uint32_t local_ip
 } as big_endian
 
 cstruct h6_as4 {
-  uint32_t peer_as;
-  uint32_t local_as;
-  uint16_t ifc;
-  uint16_t afi;
   uint64_t peer_ip_hi;
   uint64_t peer_ip_lo;
   uint64_t local_ip_hi;
