@@ -2,3 +2,4 @@ _build
 setup.bin
 setup.data
 setup.log
+lib_test/omrt.native
