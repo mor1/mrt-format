@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Operators
+open Printf 
+
 type t = IP4 | IP6
 let t_to_int = function
   | IP4 -> 1
@@ -21,7 +24,19 @@ let t_to_int = function
 and int_to_t = function
   | 1 -> IP4
   | 2 -> IP6
-  | _ -> invalid_arg "int_to_t"      
+  | n -> invalid_arg (sprintf "Afi.int_to_t (%d)" n)
 and t_to_string = function
   | IP4 -> "IPv4"
   | IP6 -> "IPv6"      
+
+type ip = IPv4 of int32 | IPv6 of int64 * int64
+let ip_to_string = function
+  | IPv4 ip -> 
+      sprintf "%ld.%ld.%ld.%ld" 
+        (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l) (ip >>> 8 &&& 0xff_l) (ip &&& 0xff_l)
+  | IPv6 (hi,lo) -> 
+      sprintf "%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx"
+        (hi >>>> 48 &&&& 0xffff_L) (hi >>>> 32 &&&& 0xffff_L)
+        (hi >>>> 16 &&&& 0xffff_L) (hi         &&&& 0xffff_L)
+        (lo >>>> 48 &&&& 0xffff_L) (lo >>>> 32 &&&& 0xffff_L)
+        (lo >>>> 16 &&&& 0xffff_L) (lo         &&&& 0xffff_L)
