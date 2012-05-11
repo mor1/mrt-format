@@ -60,11 +60,31 @@ cstruct h {
 } as big_endian
 
 let h_to_string h = 
-  sprintf "%ld %s/%d %ld"
-    (get_h_ts_sec h) (get_h_mrttype h |> int_to_t |> t_to_string) 
-    (get_h_subtype h) (get_h_length h);
+  let mrttype = get_h_mrttype h |> int_to_t in
+  let subtype =
+    let st = (get_h_subtype h) in match mrttype with
+      | Bgp4mp -> Bgp4mp.(st |> int_to_t |> t_to_string)
+      | _ -> invalid_arg "h_to_string"
+  in          
+  sprintf "%ld %s/%s %ld"
+    (get_h_ts_sec h) (t_to_string mrttype) subtype (get_h_length h);
 
 cstruct et {
   uint32_t ts_usec
 } as big_endian
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

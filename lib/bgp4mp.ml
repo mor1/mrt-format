@@ -14,6 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
     
+type t = State | Message | Message_as4 | State_as4 | Local | Local_as4
+let t_to_int = function
+  | State -> 0
+  | Message -> 1
+  | Message_as4 -> 4
+  | State_as4 -> 5
+  | Local -> 6
+  | Local_as4 -> 7
+and int_to_t = function
+  | 0 -> State
+  | 1 -> Message
+  | 4 -> Message_as4
+  | 5 -> State_as4
+  | 6 -> Local
+  | 7 -> Local_as4
+  | _ -> invalid_arg "int_to_t"
+and t_to_string = function
+  | State -> "STATE_CHANGE"
+  | Message -> "MESSAGE"
+  | Message_as4 -> "MESSAGE_AS4"
+  | State_as4 -> "STATE_CHANGE_AS4"
+  | Local -> "MESSAGE_LOCAL"
+  | Local_as4 -> "MESSAGE_AS4_LOCAL"
+    
 cstruct h4 {
   uint16_t peer_as;
   uint16_t local_as;
@@ -33,18 +57,6 @@ cstruct h6 {
   uint64_t local_ip_hi;
   uint64_t local_ip_lo
 } as big_endian
-
-type t = IP4 | IP6
-let t_to_int = function
-  | IP4 -> 1
-  | IP6 -> 2
-and int_to_t = function
-  | 1 -> IP4
-  | 2 -> IP6
-  | _ -> invalid_arg "int_to_t"      
-and t_to_string = function
-  | IP4 -> "IPv4"
-  | IP6 -> "IPv6"      
 
 cstruct state_change {
   uint16_t oldstate;
