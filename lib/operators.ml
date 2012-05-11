@@ -14,5 +14,36 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-let (|>) x f = f x
+(** Some widely used operators.
 
+    @author Richard Mortier <mort\@cantab.net>
+    @author Anil Madhavapeddy <anil\@recoil.org>
+*)
+
+(** Pipe. *)
+let (|>) x f = f x
+(** Functor pipe. *)
+let (>>) f g x = g (f x) 
+(** Element-wise pipe. *)
+let (||>) l f = List.map f l 
+
+(** 32 and 64 bit arithmetic and logic operations. *)
+
+(** Addition. *)
+let (+++) x y = Int32.add x y
+let (++++) x y = Int64.add x y
+(** Logical AND. *)
+let (&&&) x y = Int32.logand x y
+let (&&&&) x y = Int64.logand x y
+(** Logical OR. *)
+let (|||) x y = Int32.logor x y
+let (||||) x y = Int64.logor x y
+(** Logical XOR. *)
+let (^^^) x y = Int32.logxor x y
+let (^^^^) x y = Int64.logxor x y
+(** Logical shift-left. *)
+let (<<<) x y = Int32.shift_left x y
+let (<<<<) x y = Int64.shift_left x y
+(** Logical shift-right. *)
+let (>>>) x y = Int32.shift_right_logical x y
+let (>>>>) x y = Int64.shift_right_logical x y
