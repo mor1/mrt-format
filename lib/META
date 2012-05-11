@@ -1,0 +1,11 @@
+# OASIS_START
+# DO NOT EDIT (digest: b8d38e25761fd0d97b47d118b6aeeacd)
+version = "0.1"
+description = "MRT parsing"
+archive(byte) = "Mrt.cma"
+archive(byte, plugin) = "Mrt.cma"
+archive(native) = "Mrt.cmxa"
+archive(native, plugin) = "Mrt.cmxs"
+exists_if = "Mrt.cma"
+# OASIS_STOP
+
