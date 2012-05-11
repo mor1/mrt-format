@@ -13,7 +13,7 @@ Synopsis:    MRT parsing
 Library mrt
   Path:         lib
   Findlibname:  mrt
-  Modules:      Mrt, Operators, Table, Bgp4mp
+  Modules:      Mrt, Operators, Table, Bgp4mp, Afi
   BuildDepends: cstruct, cstruct.syntax, bigarray
 
 Document mrt
