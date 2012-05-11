@@ -26,11 +26,12 @@ doc: setup.data setup.bin
 install: build
 	./setup.bin -install
 
-test: 
+test-build: 
 	cd lib_test \
 	&& ocamlbuild -clean \
-	&& ocamlbuild -classic-display -use-ocamlfind omrt.native \
-	&& ./omrt.native test.mrtd
+	&& ocamlbuild -classic-display -use-ocamlfind omrt.native
+test: test-build
+	./omrt.native test.mrtd
 
 reinstall: build
 	ocamlfind remove $(NAME) || true
