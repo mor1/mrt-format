@@ -5,17 +5,24 @@ Version:     0.1
 Authors:     Richard Mortier
 Homepage:    http://github.com/mor1/ocaml-mrt
 BuildTools:  ocamlbuild
-License:     BSD4
+License:     ISC
 Plugins:     META (0.3)
 
 Synopsis:    MRT parsing
 
-Library "Mrt"
-  Path:       lib
-  Modules:    Mrt
-  
-Executable omrt
-  Path:       lib_test
-  BuildTools: ocamlbuild
-  MainIs:     omrt.ml
-  
+Library mrt
+  Build:        true
+  Install:      true
+  Path:         lib
+  Findlibname:  mrt
+#  Pack:         true
+  Modules:      Mrt
+  BuildDepends: cstruct, cstruct.syntax, bigarray
+
+Document mrt
+  Title:                API reference for mrt
+  Type:                 ocamlbuild (0.1.0)
+  InstallDir:           $htmldir/mrt
+  BuildTools+:          ocamldoc
+  XOCamlbuildPath:      lib
+  XOCamlbuildLibraries: mrt
