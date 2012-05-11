@@ -11,12 +11,9 @@ Plugins:     META (0.3)
 Synopsis:    MRT parsing
 
 Library mrt
-  Build:        true
-  Install:      true
   Path:         lib
   Findlibname:  mrt
-#  Pack:         true
-  Modules:      Mrt
+  Modules:      Mrt, Operators, Table, Bgp4mp
   BuildDepends: cstruct, cstruct.syntax, bigarray
 
 Document mrt
