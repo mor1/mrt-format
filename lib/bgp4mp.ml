@@ -69,6 +69,30 @@ cstruct state_change {
   uint16_t newstate
 } as big_endian
 
+type state = Idle | Connect | Active | OpenSent | OpenConfirm | Established
+let state_to_int = function
+  | Idle -> 1
+  | Connect -> 2
+  | Active -> 3
+  | OpenSent -> 4
+  | OpenConfirm -> 5
+  | Established -> 6
+and int_to_state = function
+  | 1 -> Idle
+  | 2 -> Connect
+  | 3 -> Active
+  | 4 -> OpenSent
+  | 5 -> OpenConfirm
+  | 6 -> Established
+  | n -> invalid_arg (sprintf "int_to_state (%d)" n)
+and state_to_string = function
+  | Idle -> "Idle"
+  | Connect -> "Connect"
+  | Active -> "Active"
+  | OpenSent -> "OpenSent"
+  | OpenConfirm -> "OpenConfirm"
+  | Established -> "Established"
+
 cstruct h_as4 {
   uint32_t peer_as;
   uint32_t local_as;
@@ -76,15 +100,4 @@ cstruct h_as4 {
   uint16_t afi
 } as big_endian
 
-cstruct h4_as4 {
-  uint32_t peer_ip;
-  uint32_t local_ip
-} as big_endian
-
-cstruct h6_as4 {
-  uint64_t peer_ip_hi;
-  uint64_t peer_ip_lo;
-  uint64_t local_ip_hi;
-  uint64_t local_ip_lo
-} as big_endian
 

@@ -24,23 +24,17 @@ let print_bgp4mp subtype pkt =
   let peer_as, local_as, ifc, afi, bs = 
     Bgp4mp.(match subtype with 
       | Message ->
-          let sh,bs = Cstruct.split pkt sizeof_h in 
-          ( Asn (get_h_peer_as sh), Asn (get_h_local_as sh), 
-            (get_h_ifc sh), sh |> get_h_afi |> Afi.int_to_t, 
+          let h,bs = Cstruct.split pkt sizeof_h in 
+          ( Asn (get_h_peer_as h), Asn (get_h_local_as h), 
+            (get_h_ifc h), h |> get_h_afi |> Afi.int_to_t, 
             bs
           )
 
-      | Message_as4 ->
-          let sh,bs = Cstruct.split pkt Bgp4mp.sizeof_h_as4 in 
-          ( Asn4 (get_h_as4_peer_as sh), Asn4 (get_h_as4_local_as sh), 
-            (get_h_as4_ifc sh), sh |> get_h_as4_afi |> Afi.int_to_t,
-            bs
-          )
-
+      | Message_as4
       | State_as4 ->
-          let sh,bs = Cstruct.split pkt Bgp4mp.sizeof_h_as4 in
-          ( Asn4 (get_h_as4_peer_as sh), Asn4 (get_h_as4_local_as sh),
-            (get_h_as4_ifc sh), sh |> get_h_as4_afi |> Afi.int_to_t,
+          let h,bs = Cstruct.split pkt Bgp4mp.sizeof_h_as4 in
+          ( Asn4 (get_h_as4_peer_as h), Asn4 (get_h_as4_local_as h),
+            (get_h_as4_ifc h), h |> get_h_as4_afi |> Afi.int_to_t,
             bs
           )
             
@@ -48,19 +42,33 @@ let print_bgp4mp subtype pkt =
           invalid_arg (sprintf "BGP4MP subtype (%s)" Bgp4mp.(t_to_string t))
     )
   in
-  let peer_ip, local_ip =
-    Afi.(Bgp4mp.(match afi with 
-      | IP4 -> IPv4 (get_h4_peer_ip bs), IPv4 (get_h4_local_ip bs)
-      | IP6 -> (IPv6 ((get_h6_peer_ip_hi bs), (get_h6_peer_ip_lo bs)), 
-                IPv6 ((get_h6_local_ip_hi bs), (get_h6_local_ip_lo bs)))
-    ))
-  in
-
-  printf "\tpeer_as:%s local_as:%s ifc:%d afi:%s\n" 
+  printf "\tpeer_as:%s local_as:%s ifc:%d afi:%s\n%!"
     (Bgp4mp.asn_to_string peer_as) (Bgp4mp.asn_to_string local_as) 
     ifc Afi.(t_to_string afi);
+
+  let peer_ip, local_ip, bs =
+    Afi.(Bgp4mp.(match afi with 
+      | IP4 -> 
+          let h,bs = Cstruct.split bs Bgp4mp.sizeof_h4 in 
+          IPv4 (get_h4_peer_ip h), IPv4 (get_h4_local_ip h), bs
+      | IP6 ->
+          let h,bs = Cstruct.split bs Bgp4mp.sizeof_h6 in 
+          IPv6 ((get_h6_peer_ip_hi h), (get_h6_peer_ip_lo h)), 
+          IPv6 ((get_h6_local_ip_hi h), (get_h6_local_ip_lo h)),
+          bs
+    ))
+  in
   printf "\tpeer_ip:%s\n\tlocal_ip:%s\n%!"
-    (Afi.ip_to_string peer_ip) (Afi.ip_to_string local_ip)
+    (Afi.ip_to_string peer_ip) (Afi.ip_to_string local_ip);
+
+  Bgp4mp.(match subtype with 
+    | State
+    | State_as4 ->
+        printf "\t\told:%s new:%s\n%!"
+          (bs |> get_state_change_oldstate |> int_to_state |> state_to_string)
+          (bs |> get_state_change_newstate |> int_to_state |> state_to_string)
+    | _ -> ()
+  )
 
 let rec print_packets buf = 
   incr npackets;
