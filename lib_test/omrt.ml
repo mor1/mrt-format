@@ -20,10 +20,10 @@ open Operators
 
 let npackets = ref 0
 
-let parse_bgp4mp h bs = 
-  printf 
+let print_bgp4mp h bs = 
+  ()
                     
-let rec parse_packets buf = 
+let rec print_packets buf = 
   incr npackets;
   
   let h,bs = Cstruct.split buf Mrt.sizeof_h in
@@ -32,10 +32,10 @@ let rec parse_packets buf =
 
   printf "[%d] %s\n%!" !npackets (h_to_string h);
   (match (get_h_mrttype h |> int_to_t) with
-    | Bgp4mp -> parse_bgp4mp (h |> get_h_subtype |> Bgp4mp.int_to_t) bs
+    | Bgp4mp -> print_bgp4mp (h |> get_h_subtype |> Bgp4mp.int_to_t) bs
     | _      -> invalid_arg "mrttype"
   );
-  if Cstruct.len bs > 0 then parse_packets bs
+  if Cstruct.len bs > 0 then print_packets bs
 
 let parse fn =
   let fd = Unix.(openfile fn [O_RDONLY] 0) in
@@ -43,7 +43,7 @@ let parse fn =
   let buf = Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1)) in
   Printf.printf "file length %d\n" (Cstruct.len buf);
 
-  parse_packets buf;
+  print_packets buf;
   Printf.printf "num packets %d\n%!" !npackets
 
 let _ = 
