@@ -17,15 +17,15 @@
 open Operators
 open Printf 
 
-type t = IP4 | IP6
-let t_to_int = function
+type tc = IP4 | IP6
+let tc_to_int = function
   | IP4 -> 1
   | IP6 -> 2
-and int_to_t = function
+and int_to_tc = function
   | 1 -> IP4
   | 2 -> IP6
-  | n -> invalid_arg (sprintf "Afi.int_to_t (%d)" n)
-and t_to_string = function
+  | n -> invalid_arg (sprintf "Afi.int_to_tc (%d)" n)
+and tc_to_string = function
   | IP4 -> "IPv4"
   | IP6 -> "IPv6"      
 
@@ -33,7 +33,9 @@ type ip = IPv4 of int32 | IPv6 of int64 * int64
 let ip_to_string = function
   | IPv4 ip -> 
       sprintf "%ld.%ld.%ld.%ld" 
-        (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l) (ip >>> 8 &&& 0xff_l) (ip &&& 0xff_l)
+        (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l) 
+        (ip >>>  8 &&& 0xff_l) (ip        &&& 0xff_l)
+
   | IPv6 (hi,lo) -> 
       sprintf "%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx"
         (hi >>>> 48 &&&& 0xffff_L) (hi >>>> 32 &&&& 0xffff_L)
