@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f6a5ba23d2118391ccd1a4cfbac5b37c)
+# DO NOT EDIT (digest: 2550f2c277212bae573e40cb88a2e204)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -17,7 +17,6 @@
 "lib/mrt.cmxs": use_mrt
 <lib/*.ml{,i}>: pkg_cstruct
 <lib/*.ml{,i}>: pkg_cstruct.syntax
-<lib/*.ml{,i}>: pkg_bigarray
 # OASIS_STOP
 
 <**/*.ml>: syntax_camlp4o, pkg_camlp4

@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: c13de6d4e8cbc51c3a9efaf9c2737e3a)
+# DO NOT EDIT (digest: ac63ea412af377020fb2822e61ee0f02)
 version = "0.1"
 description = "MRT parsing"
-requires = "cstruct cstruct.syntax bigarray"
+requires = "cstruct cstruct.syntax"
 archive(byte) = "mrt.cma"
 archive(byte, plugin) = "mrt.cma"
 archive(native) = "mrt.cmxa"
