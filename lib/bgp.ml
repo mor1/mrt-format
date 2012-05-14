@@ -28,12 +28,24 @@ let get_partial_ip4 buf =
   )
 
 let get_partial_ip6 buf = 
-  Cstruct.( 
-    let v = ref 0l in
-    for i = 0 to (min 15 ((len buf)-1)) do
-      v := (!v <<< 8) +++ (Int32.of_int (BE.get_uint8 buf i))
-    done;
-    !v <<< (8*(16 - len buf))
+  Cstruct.(   
+    let hi = 
+      let v = ref 0L in
+      let n = min 7 ((len buf)-1) in
+      for i = 0 to n do
+        v := (!v <<<< 8) ++++ (Int64.of_int (BE.get_uint8 buf i))
+      done;
+      !v <<<< (8*(8 - n))
+    in
+    let lo = 
+      let v = ref 0L in
+      let n = min 15 ((len buf)-1) in
+      for i = 8 to n do
+        v := (!v <<<< 8) ++++ (Int64.of_int (BE.get_uint8 buf i))
+      done;
+      !v <<<< (8*(8 - n))
+    in 
+    hi, lo
   )
 
 type attr
