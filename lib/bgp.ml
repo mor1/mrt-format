@@ -14,19 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type tc = IP4 | IP6
-val int_to_tc: int -> tc
-val tc_to_string: tc -> string
+let pfxlen_to_bytes l = ((l+7) / 8)
 
-val sizeof_ip4: int
-val get_ip4_ip: Cstruct.buf -> Cstruct.uint32
-
-val sizeof_ip6: int
-val get_ip6_hi: Cstruct.buf -> Cstruct.uint64
-val get_ip6_lo: Cstruct.buf -> Cstruct.uint64
-
-type ip = IPv4 of int32 | IPv6 of int64 * int64
-val ip_to_string: ip -> string
-
-type prefix = ip * Cstruct.uint8
-val prefix_to_string: prefix -> string
+type attr

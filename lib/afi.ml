@@ -29,6 +29,15 @@ and tc_to_string = function
   | IP4 -> "IPv4"
   | IP6 -> "IPv6"      
 
+cstruct ip4 {
+  uint32_t ip
+} as big_endian
+
+cstruct ip6 {
+  uint64_t hi;
+  uint64_t lo
+} as big_endian
+
 type ip = IPv4 of int32 | IPv6 of int64 * int64
 let ip_to_string = function
   | IPv4 ip -> 
@@ -42,3 +51,6 @@ let ip_to_string = function
         (hi >>>> 16 &&&& 0xffff_L) (hi         &&&& 0xffff_L)
         (lo >>>> 48 &&&& 0xffff_L) (lo >>>> 32 &&&& 0xffff_L)
         (lo >>>> 16 &&&& 0xffff_L) (lo         &&&& 0xffff_L)
+
+type prefix = ip * Cstruct.uint8
+let prefix_to_string (ip,l) = sprintf "%s/%d" (ip_to_string ip) l
