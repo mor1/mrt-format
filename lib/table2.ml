@@ -88,7 +88,7 @@ cstruct rib_h {
 } as big_endian
 
 cstruct rib_entries {
-  uint8_t count
+  uint16_t count
 } as big_endian
     
 cstruct rib_entry {
@@ -104,7 +104,7 @@ type rib = {
 }
 
 let rib_to_string r = 
-  sprintf "peer:%d, otime:%ld, attrs:[]" r.peer_index r.otime
+  sprintf "peer:%d, otime:%lu, attrs:[]" r.peer_index r.otime 
 
 type header = unit
 
@@ -158,9 +158,10 @@ let parse subtype buf =
     let ribs,rest = 
       Cstruct.getn (fun buf ->
         let rib,bs = Cstruct.split buf sizeof_rib_entry in
+        let attrs,bs = Cstruct.split bs (get_rib_entry_alen rib) in
         { peer_index = get_rib_entry_peer rib;
           otime = get_rib_entry_otime rib;
-          attrs = [] (* XXX get attrs *)
+          attrs = [];
         }, bs
       ) nribs bs
     in
