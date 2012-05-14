@@ -47,3 +47,8 @@ let (<<<<) x y = Int64.shift_left x y
 (** Logical shift-right. *)
 let (>>>) x y = Int32.shift_right_logical x y
 let (>>>>) x y = Int64.shift_right_logical x y
+
+(** Test if bit n is set in bits. *)
+let is_bit   n bits = (1 = ((1 lsl n) land bits))
+let is_bit32 n bits = (1l = ((1l <<< n) &&& bits))
+let is_bit64 n bits = (1L = ((1L <<<< n) &&&& bits))

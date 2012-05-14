@@ -20,3 +20,4 @@ type payload
 
 type t
 val parse: Cstruct.buf -> t * Cstruct.buf
+val to_string: t -> string

@@ -12,7 +12,7 @@ BuildTools:  ocamlbuild
 Library mrt
   Path:         lib
   Findlibname:  mrt
-  Modules:      Mrt, Operators, Table, Bgp4mp, Afi
+  Modules:      Mrt, Operators, Afi, Table, Bgp4mp, Table2
   BuildDepends: cstruct, cstruct.syntax
 
 Document mrt
