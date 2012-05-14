@@ -122,6 +122,7 @@ let payload_to_string = function
   | Index_table (id, n, peers) ->
       sprintf "bgpid:0x%08lx, name:\"%s\", peers:[%s]" 
         id n (peers ||> peer_to_string |> String.concat "; ")
+
   | Ip4_uni (seqno, prefix, ribs) ->
       sprintf "seqno:%ld, prefix:%s, ribs:[%s]"
         seqno (Afi.prefix_to_string prefix) 

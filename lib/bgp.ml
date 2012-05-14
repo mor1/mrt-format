@@ -21,19 +21,19 @@ let pfxlen_to_bytes l = ((l+7) / 8)
 let get_partial_ip4 buf = 
   Cstruct.( 
     let v = ref 0l in
-    for i = 0 to (len buf)-1 do
+    for i = 0 to (min 3 ((len buf)-1)) do
       v := (!v <<< 8) +++ (Int32.of_int (BE.get_uint8 buf i))
     done;
-    (!v) <<< (8*(4 - len buf))
+    !v <<< (8*(4 - len buf))
   )
 
 let get_partial_ip6 buf = 
   Cstruct.( 
     let v = ref 0l in
-    for i = 0 to (len buf)-1 do
+    for i = 0 to (min 15 ((len buf)-1)) do
       v := (!v <<< 8) +++ (Int32.of_int (BE.get_uint8 buf i))
     done;
-    (!v) <<< (8*(16 - len buf))
+    !v <<< (8*(16 - len buf))
   )
 
 type attr
