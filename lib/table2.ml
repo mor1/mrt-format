@@ -87,18 +87,6 @@ cstruct rib_h {
   uint8_t pfxlen
 } as big_endian
 
-let get_partial_ip4 buf = 
-  Cstruct.( 
-    let v = ref 0l in
-    for i = 0 to (len buf)-1 do
-      v := (!v <<< 8) +++ (Int32.of_int (BE.get_uint8 buf i))
-    done;
-    for i = (len buf) to 3 do
-      v := !v <<< 8
-    done;
-    !v
-  )
-
 cstruct rib_entries {
   uint8_t count
 } as big_endian
@@ -218,7 +206,7 @@ let parse subtype buf =
         in
         Ip4_uni (
           (get_rib_h_seqno rib_h), 
-          (Afi.(IPv4 (get_partial_ip4 pfx)), get_rib_h_pfxlen rib_h), 
+          (Afi.(IPv4 (Bgp.get_partial_ip4 pfx)), get_rib_h_pfxlen rib_h), 
           ribs
         ), rest
 
