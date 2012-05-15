@@ -100,7 +100,7 @@ cstruct rib_entry {
 type rib = {
   peer_index: int; (* 16 bit, index into peer_table *)
   otime: int32;
-  attrs: Bgp.attr list;
+  attrs: Bgp.path_attr list;
 }
 
 let rib_to_string r = 

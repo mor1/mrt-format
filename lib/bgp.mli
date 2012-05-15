@@ -14,39 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Operators
+val pfxlen_to_bytes : int -> int
+val get_partial_ip4 : Cstruct.buf -> Cstruct.uint32
+val get_partial_ip6 : Cstruct.buf -> (Cstruct.uint64 * Cstruct.uint64)
 
-let pfxlen_to_bytes l = ((l+7) / 8)
-
-let get_partial_ip4 buf = 
-  Cstruct.( 
-    let v = ref 0l in
-    for i = 0 to (min 3 ((len buf)-1)) do
-      v := (!v <<< 8) +++ (Int32.of_int (BE.get_uint8 buf i))
-    done;
-    !v <<< (8*(4 - len buf))
-  )
-
-let get_partial_ip6 buf = 
-  Cstruct.(   
-    let hi = 
-      let v = ref 0L in
-      let n = min 7 ((len buf)-1) in
-      for i = 0 to n do
-        v := (!v <<<< 8) ++++ (Int64.of_int (BE.get_uint8 buf i))
-      done;
-      !v <<<< (8*(8 - n))
-    in
-    let lo = 
-      let v = ref 0L in
-      let n = min 15 ((len buf)-1) in
-      for i = 8 to n do
-        v := (!v <<<< 8) ++++ (Int64.of_int (BE.get_uint8 buf i))
-      done;
-      !v <<<< (8*(8 - n))
-    in 
-    hi, lo
-  )
-
-type attr
-type path_attr = int * int * attr
+type path_attr
