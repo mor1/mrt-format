@@ -50,13 +50,13 @@ type header = {
   status: int;
   otime: int32;
   peer_ip: Afi.ip;
-  peer_as: Bgp4mp.asn;
+  peer_as: Bgp.asn;
 }
 
 let header_to_string h = 
   sprintf "viewno:%d, seqno:%d, status:%d, otime:%ld, peer_ip:%s, peer_as:%s, prefix:%s/%d"
     h.viewno h.seqno h.status h.otime 
-    (Afi.ip_to_string h.peer_ip) (Bgp4mp.asn_to_string h.peer_as)
+    (Afi.ip_to_string h.peer_ip) (Bgp.asn_to_string h.peer_as)
     (Afi.ip_to_string h.prefix) h.pfxlen
 
 type payload = Not_implemented
@@ -76,7 +76,7 @@ let parse subtype buf =
                status=get_h4_status buf;
                otime=get_h4_otime buf;
                peer_ip=IPv4 (get_h4_peer_ip buf);
-               peer_as=Bgp4mp.Asn (get_h4_peer_as buf);
+               peer_as=Bgp.Asn (get_h4_peer_as buf);
              }, rest
     | IP6 -> let buf, rest = Cstruct.split buf sizeof_h6 in
              { viewno=get_h6_viewno buf;
@@ -86,7 +86,7 @@ let parse subtype buf =
                status=get_h6_status buf;
                otime=get_h6_otime buf;
                peer_ip=IPv6 ((get_h6_peer_ip_hi buf), (get_h6_peer_ip_lo buf));
-               peer_as=Bgp4mp.Asn (get_h6_peer_as buf);
+               peer_as=Bgp.Asn (get_h6_peer_as buf);
              }, rest
   )
   in

@@ -75,11 +75,6 @@ cstruct state_change {
   uint16_t newstate
 } as big_endian
 
-type asn = Asn of int | Asn4 of int32
-let asn_to_string = function
-  | Asn a -> sprintf "%d" a
-  | Asn4 a -> sprintf "%ld" a
-
 type state = 
   | Idle | Connect | Active | OpenSent | OpenConfirm | Established 
   | ESTATE of int
@@ -109,8 +104,8 @@ and state_to_string = function
   | ESTATE n    -> sprintf "ESTATE %d" n
 
 type header = {
-  peer_as: asn;
-  local_as: asn;
+  peer_as: Bgp.asn;
+  local_as: Bgp.asn;
   ifc: int;
   peer_ip: Afi.ip;
   local_ip: Afi.ip;
@@ -118,23 +113,23 @@ type header = {
 
 let header_to_string h = 
   sprintf  "peer_as:%s, local_as:%s, ifc:%d, peer_ip:%s, local_ip:%s"
-    (asn_to_string h.peer_as) (asn_to_string h.local_as) h.ifc
+    (Bgp.asn_to_string h.peer_as) (Bgp.asn_to_string h.local_as) h.ifc
     (Afi.ip_to_string h.peer_ip) (Afi.ip_to_string h.local_ip)
 
 type payload = 
   | State of state * state
   | State_as4 of state * state
-  | Message 
-  | Message_as4
-  | Local
-  | Local_as4
+  | Message of Bgp.t
+  | Message_as4 of Bgp.t
+  | Local of Bgp.t
+  | Local_as4 of Bgp.t
 
 let payload_to_string = function
   | State (o,n) | State_as4 (o,n) ->
       sprintf "STATE_CHANGE(old:%s, new:%s)" 
         (state_to_string o) (state_to_string n)
-  | Message | Message_as4 -> "...message..."
-  | _ -> ""
+  | Message _ | Message_as4 _ -> "...message..."
+  | Local _ | Local_as4 _ -> "...local message..."
 
 type t = header * payload
 
@@ -154,8 +149,8 @@ let parse subtype buf =
         let h,bs = Cstruct.split buf sizeof_h in 
         let afi = h |> get_h_afi |> Afi.int_to_tc in
         let peer_ip, local_ip, bs = get_ips bs afi in
-        { peer_as = Asn (get_h_peer_as h);
-          local_as = Asn (get_h_local_as h);
+        { peer_as = Bgp.Asn (get_h_peer_as h);
+          local_as = Bgp.Asn (get_h_local_as h);
           ifc = get_h_ifc h;
           peer_ip; 
           local_ip;
@@ -165,22 +160,25 @@ let parse subtype buf =
         let h,bs = Cstruct.split buf sizeof_h_as4 in
         let afi = h |> get_h_as4_afi |> Afi.int_to_tc in
         let peer_ip, local_ip, bs = get_ips bs afi in
-        { peer_as = Asn4 (get_h_as4_peer_as h);
-          local_as = Asn4 (get_h_as4_local_as h);
+        { peer_as = Bgp.Asn4 (get_h_as4_peer_as h);
+          local_as = Bgp.Asn4 (get_h_as4_local_as h);
           ifc = get_h_as4_ifc h;
           peer_ip; 
           local_ip;
         }, bs
-
   in
   let payload = match subtype with 
     | STATE | STATE_AS4 ->
         let state_change, bs = Cstruct.split bs sizeof_state_change in
         State ((state_change |> get_state_change_oldstate |> int_to_state),
                (state_change |> get_state_change_newstate |> int_to_state))
-    | _ -> Message
+    | MESSAGE -> Message (Bgp.parse bs)
+    | MESSAGE_AS4 -> Message_as4 (Bgp.parse bs)
+    | LOCAL -> Local (Bgp.parse bs)
+    | LOCAL_AS4 -> Local_as4 (Bgp.parse bs)
   in
   (header, payload)
                          
 let to_string (h,p) = 
   sprintf "BGP4MP(%s)|%s" (header_to_string h) (payload_to_string p)
+

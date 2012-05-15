@@ -18,9 +18,6 @@ type tc
 val int_to_tc: int -> tc
 val tc_to_string: tc -> string
 
-type asn = Asn of int | Asn4 of int32
-val asn_to_string: asn -> string
-
 type t
 val to_string: t -> string
 val parse: tc -> Cstruct.buf -> t

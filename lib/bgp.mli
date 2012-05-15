@@ -14,8 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+type asn = Asn of int | Asn4 of int32
+val asn_to_string: asn -> string
+
 val pfxlen_to_bytes : int -> int
 val get_partial_ip4 : Cstruct.buf -> Cstruct.uint32
 val get_partial_ip6 : Cstruct.buf -> (Cstruct.uint64 * Cstruct.uint64)
 
 type path_attr
+
+type t
+val parse : Cstruct.buf -> t

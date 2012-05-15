@@ -75,12 +75,12 @@ cstruct peer_as4 {
 type peer = {
   id: int32;
   ip: Afi.ip;
-  asn: Bgp4mp.asn;
+  asn: Bgp.asn;
 }
 
 let peer_to_string p = 
   sprintf "id:0x%08lx, ip:%s, asn:%s" 
-    p.id (Afi.ip_to_string p.ip) (Bgp4mp.asn_to_string p.asn)
+    p.id (Afi.ip_to_string p.ip) (Bgp.asn_to_string p.asn)
 
 cstruct rib_h {
   uint32_t seqno;
@@ -183,7 +183,7 @@ let parse subtype buf =
           let entry,bs = Cstruct.split buf sizeof_peer in
           let typ = get_peer_typ entry in
           let id = get_peer_bgpid entry in
-          let ip,bs = match is_bit 7 typ with
+          let ip,bs = match is_bit 0 (* 7 *) typ with
             | false -> 
                 let ip,bs = Cstruct.split bs Afi.sizeof_ip4 in
                 Afi.(IPv4 (get_ip4_ip ip)), bs
@@ -191,13 +191,13 @@ let parse subtype buf =
                 let ip,bs = Cstruct.split bs Afi.sizeof_ip6 in
                 Afi.(IPv6 ((get_ip6_hi ip),(get_ip6_lo ip))), bs
           in
-          let asn,bs = match is_bit 6 typ with
+          let asn,bs = match is_bit 1 (* 6 *) typ with
             | false -> 
                 let asn,bs = Cstruct.split bs sizeof_peer_as in
-                Bgp4mp.Asn (get_peer_as_asn asn), bs
+                Bgp.Asn (get_peer_as_asn asn), bs
             | true -> 
                 let asn,bs = Cstruct.split bs sizeof_peer_as4 in
-                Bgp4mp.Asn4 (get_peer_as4_asn4 asn), bs
+                Bgp.Asn4 (get_peer_as4_asn4 asn), bs
           in
           { id; ip; asn }, bs
         ) npeer_entries bs
