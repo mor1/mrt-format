@@ -156,14 +156,14 @@ let parse subtype buf =
       get_rib_entries_count v, bs
     in
     let ribs,rest = 
-      Cstruct.getn (fun buf ->
+      Cstruct.getn nribs (fun buf ->
         let rib,bs = Cstruct.split buf sizeof_rib_entry in
         let attrs,bs = Cstruct.split bs (get_rib_entry_alen rib) in
         { peer_index = get_rib_entry_peer rib;
           otime = get_rib_entry_otime rib;
           attrs = [];
         }, bs
-      ) nribs bs
+      ) bs
     in
     rib_h, pfx, ribs, rest
   in
@@ -179,7 +179,7 @@ let parse subtype buf =
           let v,bs = Cstruct.split bs sizeof_peers in
           get_peers_count v, bs
         in
-        let peer_entries,rest = Cstruct.getn (fun buf ->
+        let peer_entries,rest = Cstruct.getn npeer_entries (fun buf ->
           let entry,bs = Cstruct.split buf sizeof_peer in
           let typ = get_peer_typ entry in
           let id = get_peer_bgpid entry in
@@ -200,7 +200,7 @@ let parse subtype buf =
                 Bgp.Asn4 (get_peer_as4_asn4 asn), bs
           in
           { id; ip; asn }, bs
-        ) npeer_entries bs
+        ) bs
         in
         Index_table ((get_index_table_bgpid it), viewname, peer_entries), rest
           

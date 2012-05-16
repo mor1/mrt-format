@@ -27,6 +27,9 @@ let asn_to_string = function
 
 let pfxlen_to_bytes l = ((l+7) / 8)
 
+let get_partial buf = 
+  (((Afi.IPv4 0l),(0:Cstruct.uint8)):Afi.prefix), buf
+
 let get_partial_ip4 buf = 
   Cstruct.( 
     let v = ref 0l in
@@ -179,12 +182,22 @@ let open_to_string o =
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id 
     (o.options ||> opt_param_to_string |> String.concat "; ")
     
-(*
-type update = {
-}
-*)
-type attr
+type attr = unit
 type path_attr = int * int * attr
+
+let get_path_attr buf = 
+  (0,0,()), buf
+
+cstruct uint16 {
+  uint16_t v
+} as big_endian
+
+type update = {
+  withdrawn: Afi.prefix list;
+  path_attrs: path_attr list;
+  nlri: Afi.prefix list;  
+}
+
 (*
 type notification = {
 }
@@ -193,7 +206,7 @@ type header = unit
 
 type payload = 
   | Open of bgp_open
-  | Update
+  | Update of update
   | Notification
   | Keepalive
 
@@ -201,7 +214,7 @@ type t = header * payload
 
 let parse buf = 
   let h,bs = Cstruct.split buf sizeof_h in
-  let payload,bs = 
+  let payload = 
     let message,bs = Cstruct.split bs (get_h_len h - sizeof_h) in
     match get_h_typ h |> int_to_tc with
       | OPEN ->
@@ -224,11 +237,22 @@ let parse buf =
                  hold_time = get_bgp_open_hold_time m;
                  bgp_id = get_bgp_open_bgp_id m;
                  options = opts;
-               }, bs
-      | UPDATE -> Update, bs
-      | NOTIFICATION -> Notification, bs
-      | KEEPALIVE -> Keepalive, bs
+               }
+      | UPDATE -> 
+          let withdrawn,bs = 
+            let wl,bs = Cstruct.split bs (sizeof_uint16) in
+            Cstruct.split bs (get_uint16_v wl)
+          in
+          let path_attrs,nlri = 
+            let pl,bs = Cstruct.split bs (sizeof_uint16) in
+            Cstruct.split bs (get_uint16_v pl)
+          in
+          Update {
+            withdrawn = Cstruct.getz get_partial withdrawn;
+            path_attrs = Cstruct.getz get_path_attr path_attrs;
+            nlri = Cstruct.getz get_partial nlri;
+          }
+      | NOTIFICATION -> Notification
+      | KEEPALIVE -> Keepalive
   in
   ((), payload)
-
-
