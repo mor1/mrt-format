@@ -31,6 +31,6 @@ let fn_to_buf fn =
 
 let _ = 
   let buf = fn_to_buf Sys.argv.(1) in
-  printf "file length %d\n" (Cstruct.len buf);
+  printf "file length %d\n%!" (Cstruct.len buf);
   print_packets buf;
   printf "num packets %d\n%!" !npackets

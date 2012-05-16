@@ -17,6 +17,14 @@
 open Printf
 open Operators
 
+cstruct uint16 {
+  uint16_t v
+} as big_endian
+
+cstruct uint8 {
+  uint8_t v
+} as big_endian
+
 type asn = Asn of int | Asn4 of int32
 let asn_to_string = function
   | Asn a -> sprintf "%d" a
@@ -26,9 +34,6 @@ let asn_to_string = function
         sprintf "%ld.%ld" (a >>> 16) (a &&& 0xFFFF_l)
 
 let pfxlen_to_bytes l = ((l+7) / 8)
-
-let get_partial buf = 
-  (((Afi.IPv4 0l),(0:Cstruct.uint8)):Afi.prefix), buf
 
 let get_partial_ip4 buf = 
   Cstruct.( 
@@ -59,6 +64,16 @@ let get_partial_ip6 buf =
     in 
     hi, lo
   )
+
+let get_partial buf = 
+    let l = get_uint8_v buf in
+    let ip,bs = Cstruct.(split (shift buf 1) (pfxlen_to_bytes l)) in
+    let ip = 
+      if pfxlen_to_bytes l > 4 then
+        let (hi,lo) = get_partial_ip6 ip in Afi.IPv6 (hi,lo) 
+      else
+        Afi.IPv4 (get_partial_ip4 ip)
+    in (ip,l), bs
 
 cstruct h {
   uint8_t marker[16];
@@ -186,11 +201,7 @@ type attr = unit
 type path_attr = int * int * attr
 
 let get_path_attr buf = 
-  (0,0,()), buf
-
-cstruct uint16 {
-  uint16_t v
-} as big_endian
+  failwith "not implemented"
 
 type update = {
   withdrawn: Afi.prefix list;
@@ -213,12 +224,11 @@ type payload =
 type t = header * payload
 
 let parse buf = 
-  let h,bs = Cstruct.split buf sizeof_h in
+  let h,message = Cstruct.split buf sizeof_h in
   let payload = 
-    let message,bs = Cstruct.split bs (get_h_len h - sizeof_h) in
     match get_h_typ h |> int_to_tc with
       | OPEN ->
-          let m,opts = Cstruct.split bs (get_bgp_open_opt_len message) in
+          let m,opts = Cstruct.split message (get_bgp_open_opt_len message) in
           let opts = 
             let rec aux acc bs =
               if Cstruct.len bs = 0 then acc else (
@@ -240,7 +250,7 @@ let parse buf =
                }
       | UPDATE -> 
           let withdrawn,bs = 
-            let wl,bs = Cstruct.split bs (sizeof_uint16) in
+            let wl,bs = Cstruct.split message (sizeof_uint16) in
             Cstruct.split bs (get_uint16_v wl)
           in
           let path_attrs,nlri = 
