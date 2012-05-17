@@ -17,14 +17,6 @@
 open Printf
 open Operators
 
-cstruct uint16 {
-  uint16_t v
-} as big_endian
-
-cstruct uint8 {
-  uint8_t v
-} as big_endian
-
 type asn = Asn of int | Asn4 of int32
 let asn_to_string = function
   | Asn a -> sprintf "%d" a
@@ -39,7 +31,7 @@ let get_partial_ip4 buf =
   Cstruct.( 
     let v = ref 0l in
     for i = 0 to (min 3 ((len buf)-1)) do
-      v := (!v <<< 8) +++ (Int32.of_int (BE.get_uint8 buf i))
+      v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf i))
     done;
     !v <<< (8*(4 - len buf))
   )
@@ -50,7 +42,7 @@ let get_partial_ip6 buf =
       let v = ref 0L in
       let n = min 7 ((len buf)-1) in
       for i = 0 to n do
-        v := (!v <<<< 8) ++++ (Int64.of_int (BE.get_uint8 buf i))
+        v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf i))
       done;
       !v <<<< (8*(8 - n))
     in
@@ -58,7 +50,7 @@ let get_partial_ip6 buf =
       let v = ref 0L in
       let n = min 15 ((len buf)-1) in
       for i = 8 to n do
-        v := (!v <<<< 8) ++++ (Int64.of_int (BE.get_uint8 buf i))
+        v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf i))
       done;
       !v <<<< (8*(8 - n))
     in 
@@ -66,14 +58,15 @@ let get_partial_ip6 buf =
   )
 
 let get_partial buf = 
-    let l = get_uint8_v buf in
-    let ip,bs = Cstruct.(split (shift buf 1) (pfxlen_to_bytes l)) in
-    let ip = 
-      if pfxlen_to_bytes l > 4 then
-        let (hi,lo) = get_partial_ip6 ip in Afi.IPv6 (hi,lo) 
-      else
-        Afi.IPv4 (get_partial_ip4 ip)
-    in (ip,l), bs
+  let l = Cstruct.get_uint8 buf 0 in
+  let bl = pfxlen_to_bytes l in
+  let ip,bs = Cstruct.split ~start:1 buf bl in
+  let ip = 
+    if bl > 4 then
+      let (hi,lo) = get_partial_ip6 ip in Afi.IPv6 (hi,lo) 
+    else
+      Afi.IPv4 (get_partial_ip4 ip)
+  in (ip,l), bs
 
 cstruct h {
   uint8_t marker[16];
@@ -197,11 +190,30 @@ let open_to_string o =
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id 
     (o.options ||> opt_param_to_string |> String.concat "; ")
     
-type attr = unit
-type path_attr = int * int * attr
+cenum attr {
+  ORIGIN = 1;
+  AS_PATH;
+  NEXT_HOP;
+  MED;
+  LOCAL_PREF;
+  ATOMIC_AGGR;
+  AGGREGATOR
+} as uint8_t
+
+type path_attr = int * attr
+
+cstruct ft {
+  uint8_t flags;
+  uint8_t tc
+} as big_endian
+
+let is_optional f = is_bit 7 f
+let is_transitive f = is_bit 6 f
+let is_partial f = is_bit 5 f
+let is_extlen f = is_bit 4 f
 
 let get_path_attr buf = 
-  failwith "not implemented"
+  (0,ORIGIN), buf
 
 type update = {
   withdrawn: Afi.prefix list;
@@ -250,12 +262,12 @@ let parse buf =
                }
       | UPDATE -> 
           let withdrawn,bs = 
-            let wl,bs = Cstruct.split message (sizeof_uint16) in
-            Cstruct.split bs (get_uint16_v wl)
+            let wl = Cstruct.BE.get_uint16 message 0 in
+            Cstruct.split ~start:2 message wl
           in
           let path_attrs,nlri = 
-            let pl,bs = Cstruct.split bs (sizeof_uint16) in
-            Cstruct.split bs (get_uint16_v pl)
+            let pl = Cstruct.BE.get_uint16 bs 0 in
+            Cstruct.split ~start:2 bs pl
           in
           Update {
             withdrawn = Cstruct.getz get_partial withdrawn;
