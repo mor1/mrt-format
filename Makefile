@@ -32,9 +32,9 @@ setup.bin: setup.ml
 	$(RM) setup.cmx setup.cmi setup.o setup.cmo
 
 setup.data: setup.bin
-	./setup.bin -configure \
-		--override ocamlbuildflags -classic-display \
-		--enable-tests
+	./setup.bin -configure --enable-tests
+#		--override ocamlbuildflags -classic-display
+
 
 $(NAME).a: build
 
