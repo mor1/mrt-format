@@ -69,12 +69,8 @@ let parse buf =
   let lenf buf = 
     let hlen = match buf |> get_h_mrttype |> int_to_tc with
       | None -> failwith "lenf: bad MRT header"
-          
-      | Some BGP4MP_ET | Some OSPF3_ET | Some ISIS_ET 
-        -> sizeof_h + sizeof_et
-          
-      | Some (OSPF2|OSPF3|ISIS|TABLE|TABLE2|BGP4MP)
-        -> sizeof_h
+      | Some (BGP4MP_ET|OSPF3_ET|ISIS_ET) -> sizeof_h + sizeof_et
+      | Some (OSPF2|OSPF3|ISIS|TABLE|TABLE2|BGP4MP) -> sizeof_h
     in
     let plen = Int32.to_int (get_h_len buf) - hlen in
     hlen, plen
@@ -90,18 +86,17 @@ let parse buf =
       }
     in
     let subtype = get_h_subtype h in
-    header, 
-    (match h |> get_h_mrttype |> int_to_tc with
+    header, (match h |> get_h_mrttype |> int_to_tc with
       | None -> failwith "pf: bad MRT header"
-      | Some BGP4MP -> (match Bgp4mp.(parse subtype p ()) with
+      | Some BGP4MP -> (match Bgp4mp.parse subtype p () with
           | Some v -> Bgp4mp v
           | None -> failwith "pf: bad BGP4MP packet"
       )
-      | Some TABLE -> (match Table.(parse subtype p ()) with
+      | Some TABLE -> (match Table.parse subtype p () with
           | Some v -> Table v
           | None -> failwith "pf: bad TABLE packet"
       )
-      | Some TABLE2 -> (match Table2.(parse subtype p ()) with
+      | Some TABLE2 -> (match Table2.parse subtype p () with
           | Some v -> Table2 v
           | None -> failwith "pf: bad TABLE2 packet"
       )
