@@ -150,22 +150,28 @@ let parse_capability buf = function
                       get_mp_ext_safi buf |> Safi.int_to_tc)
   | _ -> Ecapability buf
 
-type oc = AUTHENTICATION | CAPABILITY
+type oc = RESERVED | AUTHENTICATION | CAPABILITY
 let oc_to_int = function
+  | RESERVED -> 0
   | AUTHENTICATION -> 1
   | CAPABILITY -> 2
 and int_to_oc = function
+  | 0 -> RESERVED
   | 1 -> AUTHENTICATION
   | 2 -> CAPABILITY
+  | t -> failwith (sprintf "bad opt %d" t)
 and oc_to_string = function
+  | RESERVED -> "RESERVED"
   | AUTHENTICATION -> "AUTHENTICATION"
   | CAPABILITY -> "CAPABILITY"
 
 type opt_param =
+  | Reserved (* wtf? *)
   | Authentication (* deprecated, rfc 4271 *)
   | Capability of capability
 
 let opt_param_to_string = function
+  | Reserved -> "RESERVED"
   | Authentication -> "AUTH"
   | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
 
@@ -201,6 +207,7 @@ cenum attr {
   COMMUNITY = 8;
   MP_REACH_NLRI = 14;
   MP_UNREACH_NLRI = 15;
+  EXT_COMMUNITIES = 16;
   AS4_PATH = 17
 } as uint8_t
 
@@ -211,6 +218,7 @@ type path_attr =
   | As_path 
   | Next_hop
   | Community
+  | Ext_communities
   | Med
   | Atomic_aggr
   | Aggregator
@@ -258,6 +266,9 @@ let path_attrs_iter buf =
       | Some COMMUNITY ->
           Community
 
+      | Some EXT_COMMUNITIES ->
+          Ext_communities
+
       | Some MED ->
           Med
 
@@ -293,6 +304,7 @@ let update_to_string u =
     | Some As4_path -> "AS4_PATH; " ^ (path_attrs ())
     | Some Next_hop -> "NEXT_HOP; " ^ (path_attrs ())
     | Some Community -> "COMMUNITY; " ^ (path_attrs ())
+    | Some Ext_communities -> "EXT_COMMUNITIES; " ^ (path_attrs ())
     | Some Med -> "MED; " ^ (path_attrs ())
     | Some Atomic_aggr -> "ATOMIC_AGGR; " ^ (path_attrs ())
     | Some Aggregator -> "AGGREGATOR; " ^ (path_attrs ())
@@ -327,12 +339,13 @@ let parse buf =
             let rec aux acc bs =
               if Cstruct.len bs = 0 then acc else (
                 let t,opt, bs = Tlv.get_tlv bs in
+                printf "T %d\n%!" t;
                 let opt = match int_to_oc t with
+                  | RESERVED -> Reserved
                   | AUTHENTICATION -> Authentication
                   | CAPABILITY -> 
                       let t,c, _ = Tlv.get_tlv bs in
                       Capability (parse_capability c (int_to_cc t))
-                  | _ -> failwith (sprintf "bad opt %d" t)
                 in aux (opt :: acc) bs
               )
             in aux [] opts
