@@ -126,9 +126,9 @@ type payload =
 
 let payload_to_string = function
   | State (o,n) | State_as4 (o,n) ->
-      sprintf "STATE_CHANGE(old:%s, new:%s)" 
-        (state_to_string o) (state_to_string n)
-  | Message _ | Message_as4 _ -> "...message..."
+      sprintf "STATE_CHANGE(%s -> %s)" (state_to_string o) (state_to_string n)
+  | Message p | Message_as4 p -> 
+      sprintf "MESSAGE(%s)" (Bgp.to_string p)
   | Local _ | Local_as4 _ -> "...local message..."
 
 type t = header * payload

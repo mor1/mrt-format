@@ -25,3 +25,4 @@ type path_attr
 
 type t
 val parse : Cstruct.buf -> t
+val to_string : t -> string
