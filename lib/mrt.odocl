@@ -1,12 +1,12 @@
 # OASIS_START
-# DO NOT EDIT (digest: c6901c978301bfbc34d8af91c8a7fa48)
+# DO NOT EDIT (digest: 773c9ed813e3441e134090dbf8cffcf3)
 Mrt
 Operators
 Afi
+Safi
+Tlv
 Table
 Bgp4mp
 Table2
-Safi
-Tlv
 Bgp
 # OASIS_STOP
