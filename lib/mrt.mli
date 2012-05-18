@@ -14,10 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type tc
-type header
-type payload
-
 type t
-val parse: Cstruct.buf -> t * Cstruct.buf
+val parse : Cstruct.buf -> unit -> t option
 val to_string: t -> string

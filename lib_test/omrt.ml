@@ -17,20 +17,28 @@
 open Printf
 open Operators
 
-let npackets = ref 0
-
-let rec print_packets buf = 
-  incr npackets;
-  let packet, rest = Mrt.parse buf in
-  printf "#%d|%s\n%!" !npackets (Mrt.to_string packet);
-  if Cstruct.len rest > 0 then print_packets rest
-
-let fn_to_buf fn =
-  let fd = Unix.(openfile fn [O_RDONLY] 0) in
-  Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1))
-
 let _ = 
-  let buf = fn_to_buf Sys.argv.(1) in
+  (* global packet counter *)
+  let npackets = ref 0 in
+  
+  (* open file, create buf *)
+  let fn = Sys.argv.(1) in
+  let fd = Unix.(openfile fn [O_RDONLY] 0) in
+  let buf = Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1)) in
   printf "file length %d\n%!" (Cstruct.len buf);
-  print_packets buf;
+
+  (* generate packet iterator *)
+  let packets = Mrt.parse buf in
+
+  (* recursively iterate over packet iterator, printing as we go *)
+  let rec print_packet () = 
+    match packets () with
+      | None -> ()
+      | Some packet -> 
+          incr npackets;
+          printf "#%d|%s\n%!" !npackets (Mrt.to_string packet)
+  in
+  print_packet ();
+
+  (* done! *)
   printf "num packets %d\n%!" !npackets
