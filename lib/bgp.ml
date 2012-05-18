@@ -185,46 +185,122 @@ type bgp_open = {
   options: opt_param list;
 }
 
-let open_to_string o = 
+let bgp_open_to_string o = 
   sprintf "version:%d, my_as:%s, hold_time:%d, bgp_id:0x%08lx, options:[%s]"
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id 
     (o.options ||> opt_param_to_string |> String.concat "; ")
     
 cenum attr {
   ORIGIN = 1;
-  AS_PATH;
-  NEXT_HOP;
-  MED;
-  LOCAL_PREF;
-  ATOMIC_AGGR;
-  AGGREGATOR
+  AS_PATH = 2;
+  NEXT_HOP = 3;
+  MED = 4;
+  LOCAL_PREF = 5;
+  ATOMIC_AGGR = 6;
+  AGGREGATOR = 7;
+  COMMUNITY = 8;
+  MP_REACH_NLRI = 14;
+  MP_UNREACH_NLRI = 15;
+  AS4_PATH = 17
 } as uint8_t
 
-type path_attr = int * attr
+cenum origin { IGP; EGP; INCOMPLETE } as uint8_t
 
+type path_attr = 
+  | Origin of (origin option)
+  | As_path 
+  | Next_hop
+  | Community
+  | Med
+  | Atomic_aggr
+  | Aggregator
+  | Mp_reach_nlri
+  | Mp_unreach_nlri
+  | As4_path
+           
 cstruct ft {
   uint8_t flags;
-  uint8_t tc
+  uint8_t tc;
+  uint8_t len
+} as big_endian
+
+cstruct fte {
+  uint8_t flags;
+  uint8_t tc;
+  uint16_t len
 } as big_endian
 
 let is_optional f = is_bit 7 f
 let is_transitive f = is_bit 6 f
 let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
+  
+let path_attrs_iter buf = 
+  let lenfn buf = 
+    let f = get_ft_flags buf in
+    Cstruct.(if is_extlen f then sizeof_fte,get_fte_len buf else sizeof_ft, get_ft_len buf)
+  in
+  let pfn hlen buf =
+    let h,p = Cstruct.split buf hlen in
+    match h |> get_ft_tc |> attr_of_int with
+      | Some ORIGIN -> 
+          let p = Cstruct.get_uint8 p 0 |> origin_of_int in 
+          Origin p
+            
+      | Some AS_PATH ->
+          As_path
+      | Some AS4_PATH ->
+          As4_path
 
-let get_path_attr buf = 
-  (0,ORIGIN), buf
+      | Some NEXT_HOP ->
+          Next_hop
+
+      | Some COMMUNITY ->
+          Community
+
+      | Some MED ->
+          Med
+
+      | Some ATOMIC_AGGR ->
+          Atomic_aggr
+
+      | Some AGGREGATOR ->
+          Aggregator
+
+      | Some MP_REACH_NLRI ->
+          Mp_reach_nlri
+      
+      | Some MP_UNREACH_NLRI ->
+          Mp_unreach_nlri
+
+      | _ -> 
+          printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
+          Cstruct.hexdump p; failwith "unknown path attr"
+  in
+  Cstruct.(iter lenfn pfn buf) 
 
 type update = {
   withdrawn: Afi.prefix list;
-  path_attrs: path_attr list;
+  path_attrs: (unit -> path_attr option);
   nlri: Afi.prefix list;  
 }
 
-(*
-type notification = {
-}
-*)
+let update_to_string u = 
+  let rec path_attrs () = match u.path_attrs () with
+    | None -> ""
+    | Some Origin p -> "ORIGIN; " ^ (path_attrs ())
+    | Some As_path -> "AS_PATH; " ^ (path_attrs ())
+    | Some As4_path -> "AS4_PATH; " ^ (path_attrs ())
+    | Some Next_hop -> "NEXT_HOP; " ^ (path_attrs ())
+    | Some Community -> "COMMUNITY; " ^ (path_attrs ())
+    | Some Med -> "MED; " ^ (path_attrs ())
+    | Some Atomic_aggr -> "ATOMIC_AGGR; " ^ (path_attrs ())
+    | Some Aggregator -> "AGGREGATOR; " ^ (path_attrs ())
+    | Some Mp_reach_nlri -> "MP_REACH_NLRI; " ^ (path_attrs ())
+    | Some Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ (path_attrs ())
+  in
+  sprintf "withdrawn:[XX], path_attrs:[%s], nlri:[XX]" (path_attrs ())
+
 type header = unit
 
 type payload = 
@@ -232,6 +308,12 @@ type payload =
   | Update of update
   | Notification
   | Keepalive
+
+let payload_to_string = function 
+  | Open o -> sprintf "OPEN(%s)" (bgp_open_to_string o)
+  | Update u -> sprintf "UPDATE(%s)" (update_to_string u)
+  | Notification -> "NOTIFICATION"
+  | Keepalive -> "KEEPALIVE"
 
 type t = header * payload
 
@@ -250,6 +332,7 @@ let parse buf =
                   | CAPABILITY -> 
                       let t,c, _ = Tlv.get_tlv bs in
                       Capability (parse_capability c (int_to_cc t))
+                  | _ -> failwith (sprintf "bad opt %d" t)
                 in aux (opt :: acc) bs
               )
             in aux [] opts
@@ -271,10 +354,13 @@ let parse buf =
           in
           Update {
             withdrawn = Cstruct.getz get_partial withdrawn;
-            path_attrs = Cstruct.getz get_path_attr path_attrs;
+            path_attrs = path_attrs_iter path_attrs;
             nlri = Cstruct.getz get_partial nlri;
           }
       | NOTIFICATION -> Notification
       | KEEPALIVE -> Keepalive
   in
   ((), payload)
+
+let to_string (h,p) = 
+  sprintf "BGP(%s)" (payload_to_string p)
