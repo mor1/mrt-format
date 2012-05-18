@@ -27,6 +27,17 @@ let asn_to_string = function
 
 let pfxlen_to_bytes l = ((l+7) / 8)
 
+let get_nlri4 buf off = 
+  Cstruct.(
+    let v = ref 0l in
+    let pl = get_uint8 buf off in
+    let bl = pfxlen_to_bytes pl in
+    for i = 0 to bl-1 do
+      v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf off+i+1))
+    done;
+    Afi.IPv4 (!v <<< (8*(4 - bl))), pl
+  )
+
 let get_partial_ip4 buf = 
   Cstruct.( 
     let v = ref 0l in
@@ -66,7 +77,7 @@ let get_partial buf =
       let (hi,lo) = get_partial_ip6 ip in Afi.IPv6 (hi,lo) 
     else
       Afi.IPv4 (get_partial_ip4 ip)
-  in (ip,l), bs
+  in (ip,l)
 
 cstruct h {
   uint8_t marker[16];
@@ -250,9 +261,9 @@ let path_attrs_iter buf =
   in
   let pfn hlen buf =
     let h,p = Cstruct.split buf hlen in
-    match h |> get_ft_tc |> attr_of_int with
+    match h |> get_ft_tc |> int_to_attr with
       | Some ORIGIN -> 
-          let p = Cstruct.get_uint8 p 0 |> origin_of_int in 
+          let p = Cstruct.get_uint8 p 0 |> int_to_origin in 
           Origin p
             
       | Some AS_PATH ->

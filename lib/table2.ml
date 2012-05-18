@@ -23,35 +23,16 @@ cenum tc {
   RIB_IPV4_MULTICAST = 3;
   RIB_IPV6_UNICAST   = 4;
   RIB_IPV6_MULTICAST = 5
-(*
-  ;
-  RIB_GENERIC        = 6
-*)
+(* RIB_GENERIC        = 6 *)
 } as uint8_t
 
 cstruct index_table {
   uint32_t bgpid
 } as big_endian
 
-cstruct viewname {
-  uint16_t len
-} as big_endian
-
-cstruct peers {
-  uint16_t count
-} as big_endian
-
 cstruct peer {
   uint8_t typ;
   uint32_t bgpid
-} as big_endian
-
-cstruct peer_as {
-  uint16_t asn
-} as big_endian
-
-cstruct peer_as4 {
-  uint32_t asn4
 } as big_endian
 
 type peer = {
@@ -71,22 +52,11 @@ let peers_to_string ps =
   in 
   aux "" ps
 
-cstruct rib_h4 {
-  uint32_t seqno;
-  uint8_t pfxlen;
-  uint32_t prefix;
-  uint16_t count
+cstruct rib_h {
+  uint32_t seqno
 } as big_endian
 
-cstruct rib_h6 {
-  uint32_t seqno;
-  uint8_t pfxlen;
-  uint64_t prefix_hi;
-  uint64_t prefix_lo;
-  uint16_t count
-} as big_endian
-    
-cstruct rib_entry {
+cstruct rib {
   uint16_t peer;
   uint32_t otime;
   uint16_t alen
@@ -95,7 +65,7 @@ cstruct rib_entry {
 type rib = {
   peer_index: int; (* 16 bit, index into peer_table *)
   otime: int32;
-  attrs: Bgp.path_attr list;
+  attrs: Bgp.path_attr Cstruct.iter;
 }
 
 let rib_to_string r = 
@@ -110,10 +80,10 @@ let ribs_to_string rs =
   
 type t =
   | Index_table of int32 * string * peer Cstruct.iter
-  | Ip4_uni of int32 * Afi.prefix * rib Cstruct.iter
-  | Ip4_multi of int32 * Afi.prefix * rib Cstruct.iter
-  | Ip6_uni of int32 * Afi.prefix * rib Cstruct.iter
-  | Ip6_multi of int32 * Afi.prefix * rib Cstruct.iter
+  | Ip4_unicast of int32 * Afi.prefix * rib Cstruct.iter
+  | Ip4_multicast of int32 * Afi.prefix * rib Cstruct.iter
+  | Ip6_unicast of int32 * Afi.prefix * rib Cstruct.iter
+  | Ip6_multicast of int32 * Afi.prefix * rib Cstruct.iter
 
 let to_string p =
   let payload_to_string = function
@@ -121,19 +91,19 @@ let to_string p =
         sprintf "INDEX_TABLE(bgpid:0x%08lx, name:\"%s\", peers:[%s])" 
           id n (peers_to_string peers)
 
-    | Ip4_uni (seqno, prefix, ribs) ->
+    | Ip4_unicast (seqno, prefix, ribs) ->
         sprintf "IPV4_UNICAST(seqno:%ld, prefix:%s, ribs:[%s])"
           seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs)
 
-    | Ip4_multi (seqno, prefix, ribs) ->
+    | Ip4_multicast (seqno, prefix, ribs) ->
         sprintf "IPV4_MULTICAST(seqno:%ld, prefix:%s, ribs:[%s])"
           seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs)
 
-    | Ip6_uni (seqno, prefix, ribs) ->
+    | Ip6_unicast (seqno, prefix, ribs) ->
         sprintf "IPV6_UNICAST(seqno:%ld, prefix:%s, ribs:[%s])"
           seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs) 
 
-    | Ip6_multi (seqno, prefix, ribs) ->
+    | Ip6_multicast (seqno, prefix, ribs) ->
         sprintf "IPV6_MULTICAST(seqno:%ld, prefix:%s, ribs:[%s])"
           seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs) 
   in
@@ -158,33 +128,39 @@ let parse subtype buf =
     let hlen = match int_to_tc subtype with
       | None -> failwith "lenf: bad TABLE2 header"
       | Some PEER_INDEX_TABLE -> 0
-      | Some (RIB_IPV4_UNICAST|RIB_IPV4_MULTICAST) -> sizeof_rib_h4
-      | Some (RIB_IPV6_UNICAST|RIB_IPV6_MULTICAST) -> sizeof_rib_h6
+      | Some (RIB_IPV4_UNICAST|RIB_IPV4_MULTICAST) -> sizeof_rib_h
+      | Some (RIB_IPV6_UNICAST|RIB_IPV6_MULTICAST) -> sizeof_rib_h
     in hlen, Cstruct.len buf - hlen
   in
   let pf hlen buf = (), (match int_to_tc subtype with
     | Some RIB_IPV4_UNICAST ->
-        let pfx = get_rib_h4_pfxlen buf |> Bgp.pfxlen_to_bytes in
-        let ribs = x in
-        Ip4_uni (
-          (get_rib_h4_seqno buf), 
-          (Afi.(IPv4 (Bgp.get_partial_ip4 pfx)), get_rib_h4_pfxlen buf), 
-          ribs
+        let seqno = get_rib_h_seqno buf in
+        let prefix = Bgp.get_nlri4 buf sizeof_rib_h in
+        if not (Cstruct.shift_left buf sizeof_rib_h) then
+          failwith "bad ip4_uni rib"
+        else (
+          let ribs = Cstruct.iter
+            (fun buf -> 0)
+            (fun _ buf -> 
+              let peer_index = get_rib_peer buf in
+              let otime = get_rib_otime buf in
+              let attrs = 
+              { peer_index; otime; attrs })
+            buf
+          in
+          Ip4_unicast (seqno, prefix, ribs)
         )
-          
     | Some RIB_IPV4_MULTICAST ->
-        let pfx = get_rib_h4_pfxlen buf |> Bgp.pfxlen_to_bytes in
-        let ribs = x in
-        Ip4_multi (
-          (get_rib_h4_seqno buf), 
-          (Afi.(IPv4 (Bgp.get_partial_ip4 pfx)), get_rib_h4_pfxlen buf), 
+        let ribs = () in
+        Ip4_multicast (
+          (get_rib_h4_seqno buf), Bgp.get_partial buf,
           ribs
         )
 
     | Some RIB_IPV6_UNICAST ->
         let pfx = get_rib_h6_pfxlen buf |> Bgp.pfxlen_to_bytes in
         let ribs = x in
-        Ip6_uni (
+        Ip6_unicast (
           (get_rib_h6_seqno buf), 
           (Afi.(IPv6 (Bgp.get_partial_ip6 pfx)), get_rib_h6_pfxlen buf), 
           ribs
@@ -193,7 +169,7 @@ let parse subtype buf =
     | Some RIB_IPV6_MULTICAST ->
         let pfx = get_rib_h6_pfxlen buf |> Bgp.pfxlen_to_bytes in
         let ribs = x in
-        Ip6_multi (
+        Ip6_multicast (
           (get_rib_h6_seqno buf), 
           (Afi.(IPv6 (Bgp.get_partial_ip6 pfx)), get_rib_h6_pfxlen buf), 
           ribs
