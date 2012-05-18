@@ -15,5 +15,5 @@
  *)
 
 type t
-val parse : Cstruct.buf -> unit -> t option
 val to_string: t -> string
+val parse : Cstruct.buf -> unit -> t option

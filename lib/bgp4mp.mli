@@ -14,10 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type tc
-val int_to_tc: int -> tc
-val tc_to_string: tc -> string
-
 type t
 val to_string: t -> string
-val parse: tc -> Cstruct.buf -> t
+val parse: int -> Cstruct.buf -> unit -> t option

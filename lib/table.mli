@@ -15,6 +15,5 @@
  *)
 
 type t
-
 val to_string: t -> string
-val parse: Afi.tc -> Cstruct.buf -> t
+val parse: int -> Cstruct.buf -> unit -> t option

@@ -17,35 +17,14 @@
 open Printf
 open Operators
 
-type tc =        
-  | PEER_INDEX_TABLE | RIB_IPV4_UNICAST | RIB_IPV4_MULTICAST
-  | RIB_IPV6_UNICAST | RIB_IPV6_MULTICAST | RIB_GENERIC
-  | ETC of int
-
-let tc_to_int = function
-  | PEER_INDEX_TABLE   -> 1
-  | RIB_IPV4_UNICAST   -> 2
-  | RIB_IPV4_MULTICAST -> 3
-  | RIB_IPV6_UNICAST   -> 4
-  | RIB_IPV6_MULTICAST -> 5
-  | RIB_GENERIC        -> 6
-  | ETC n              -> n
-and int_to_tc = function
-  | 1 -> PEER_INDEX_TABLE
-  | 2 -> RIB_IPV4_UNICAST
-  | 3 -> RIB_IPV4_MULTICAST
-  | 4 -> RIB_IPV6_UNICAST
-  | 5 -> RIB_IPV6_MULTICAST
-  | 6 -> RIB_GENERIC
-  | n -> ETC n
-and tc_to_string = function
-  | PEER_INDEX_TABLE   -> "PEER_INDEX_TABLE"
-  | RIB_IPV4_UNICAST   -> "RIB_IPV4_UNICAST"
-  | RIB_IPV4_MULTICAST -> "RIB_IPV4_MULTICAST"
-  | RIB_IPV6_UNICAST   -> "RIB_IPV6_UNICAST"
-  | RIB_IPV6_MULTICAST -> "RIB_IPV6_MULTICAST"
-  | RIB_GENERIC        -> "RIB_GENERIC"
-  | ETC n              -> sprintf "ETC %d" n
+cenum tc {
+  PEER_INDEX_TABLE   = 1;
+  RIB_IPV4_UNICAST   = 2;
+  RIB_IPV4_MULTICAST = 3;
+  RIB_IPV6_UNICAST   = 4;
+  RIB_IPV6_MULTICAST = 5;
+  RIB_GENERIC        = 6
+} as uint8_t
 
 cstruct index_table {
   uint32_t bgpid
@@ -114,9 +93,6 @@ type payload =
   | Ip4_multi of int32 * Afi.prefix * rib list
   | Ip6_uni of int32 * Afi.prefix * rib list
   | Ip6_multi of int32 * Afi.prefix * rib list
-(*
-  | Generic of
-*)
 
 let payload_to_string = function
   | Index_table (id, n, peers) ->
@@ -144,6 +120,9 @@ let payload_to_string = function
         (ribs ||> rib_to_string |> String.concat "; ")
 
 type t = header * payload
+
+let to_string (h,p) = 
+  sprintf "TABLE2()|%s" (payload_to_string p)
 
 let parse subtype buf = 
   let parse_rib buf = 
@@ -241,13 +220,3 @@ let parse subtype buf =
     | _ -> invalid_arg "Table2.parse"
   in
   ((), payload)
-
-let to_string (h,p) = 
-  sprintf "TABLE2()|%s" (payload_to_string p)
-
-
-
-
-
-
-

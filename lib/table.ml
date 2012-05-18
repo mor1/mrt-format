@@ -66,32 +66,38 @@ let payload_to_string = function
 
 type t = header * payload
 
-let parse subtype buf = 
-  let header,bs = Afi.(match subtype with
-    | IP4 -> let buf, rest = Cstruct.split buf sizeof_h4 in
-             { viewno=get_h4_viewno buf;
-               seqno=get_h4_seqno buf;
-               prefix=IPv4 (get_h4_prefix buf);
-               pfxlen=get_h4_pfxlen buf;
-               status=get_h4_status buf;
-               otime=get_h4_otime buf;
-               peer_ip=IPv4 (get_h4_peer_ip buf);
-               peer_as=Bgp.Asn (get_h4_peer_as buf);
-             }, rest
-    | IP6 -> let buf, rest = Cstruct.split buf sizeof_h6 in
-             { viewno=get_h6_viewno buf;
-               seqno=get_h6_seqno buf;
-               prefix=IPv6 ((get_h6_prefix_hi buf), (get_h6_prefix_lo buf));
-               pfxlen=get_h6_pfxlen buf;
-               status=get_h6_status buf;
-               otime=get_h6_otime buf;
-               peer_ip=IPv6 ((get_h6_peer_ip_hi buf), (get_h6_peer_ip_lo buf));
-               peer_as=Bgp.Asn (get_h6_peer_as buf);
-             }, rest
-  )
-  in
-  let payload = Not_implemented in
-  (header, payload)
-
 let to_string (h,p) = 
   sprintf "TABLE(%s)|%s" (header_to_string h) (payload_to_string p)
+
+let parse subtype buf = 
+  let lenf buf = Afi.(match int_to_tc subtype with
+    | IP4 -> sizeof_h4, Cstruct.len buf - sizeof_h4
+    | IP6 -> sizeof_h6, Cstruct.len buf - sizeof_h6
+  )
+  in
+  let pf hlen buf = 
+    let h,_ = Cstruct.split buf hlen in
+    let header = Afi.(match int_to_tc subtype with
+      | IP4 -> { viewno=get_h4_viewno h;
+                 seqno=get_h4_seqno h;
+                 prefix=IPv4 (get_h4_prefix h);
+                 pfxlen=get_h4_pfxlen h;
+                 status=get_h4_status h;
+                 otime=get_h4_otime h;
+                 peer_ip=IPv4 (get_h4_peer_ip h);
+                 peer_as=Bgp.Asn (get_h4_peer_as h);
+               }
+      | IP6 -> { viewno=get_h6_viewno h;
+                 seqno=get_h6_seqno h;
+                 prefix=IPv6 ((get_h6_prefix_hi h), (get_h6_prefix_lo h));
+                 pfxlen=get_h6_pfxlen h;
+                 status=get_h6_status h;
+                 otime=get_h6_otime h;
+                 peer_ip=IPv6 ((get_h6_peer_ip_hi h), (get_h6_peer_ip_lo h));
+                 peer_as=Bgp.Asn (get_h6_peer_as h);
+               }
+    )
+    in
+    (header, Not_implemented)
+  in
+  Cstruct.iter lenf pf buf

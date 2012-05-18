@@ -62,16 +62,18 @@ let payload_to_string p = sprintf "%s" (match p with
 
 type t = header * payload
 
+let to_string (h,p) =
+  sprintf "%s|%s" (header_to_string h) (payload_to_string p)
+
 let parse buf = 
   let lenf buf = 
-    let hlen = match buf |> get_h_mrttype |> tc_of_int with
+    let hlen = match buf |> get_h_mrttype |> int_to_tc with
       | None -> failwith "lenf: bad MRT header"
-      
+          
       | Some BGP4MP_ET | Some OSPF3_ET | Some ISIS_ET 
         -> sizeof_h + sizeof_et
-      
-      | Some OSPF2 | Some OSPF3 | Some ISIS
-      | Some TABLE | Some TABLE2 | Some BGP4MP
+          
+      | Some (OSPF2|OSPF3|ISIS|TABLE|TABLE2|BGP4MP)
         -> sizeof_h
     in
     let plen = Int32.to_int (get_h_len buf) - hlen in
@@ -89,25 +91,22 @@ let parse buf =
     in
     let subtype = get_h_subtype h in
     header, 
-    match h |> get_h_mrttype |> tc_of_int with
+    (match h |> get_h_mrttype |> int_to_tc with
       | None -> failwith "pf: bad MRT header"
-      | Some BGP4MP -> Bgp4mp Bgp4mp.(parse (int_to_tc subtype) p)
-      | Some TABLE  -> Table Table.(parse (Afi.int_to_tc subtype) p) 
-      | Some TABLE2 -> Table2 Table2.(parse (int_to_tc subtype) p)
-      | Some _      -> printf "%d\n%!" (get_h_mrttype h); Unknown p
+      | Some BGP4MP -> (match Bgp4mp.(parse subtype p ()) with
+          | Some v -> Bgp4mp v
+          | None -> failwith "pf: bad BGP4MP packet"
+      )
+      | Some TABLE -> (match Table.(parse subtype p ()) with
+          | Some v -> Table v
+          | None -> failwith "pf: bad TABLE packet"
+      )
+      | Some TABLE2 -> (match Table2.(parse subtype p ()) with
+          | Some v -> Table2 v
+          | None -> failwith "pf: bad TABLE2 packet"
+      )
+      | Some (OSPF3_ET|OSPF3|ISIS_ET|ISIS|BGP4MP_ET|OSPF2)
+        -> failwith (sprintf "pf: unsupported type %d" (get_h_mrttype h))
+    )
   in
   Cstruct.(iter lenf pf buf)
-
-let to_string (h,p) =
-  sprintf "%s|%s" (header_to_string h) (payload_to_string p)
-
-
-
-
-
-
-
-
-
-
-
