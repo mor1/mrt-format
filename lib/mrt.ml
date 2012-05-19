@@ -72,7 +72,7 @@ let parse buf =
       | Some (BGP4MP_ET|OSPF3_ET|ISIS_ET) -> sizeof_h + sizeof_et
       | Some (OSPF2|OSPF3|ISIS|TABLE|TABLE2|BGP4MP) -> sizeof_h
     in
-    let plen = Int32.to_int (get_h_len buf) - hlen in
+    let plen = Int32.to_int (get_h_len buf) in
     hlen, plen
   in
   let pf hlen buf = 
