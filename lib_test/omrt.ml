@@ -31,12 +31,12 @@ let _ =
   let packets = Mrt.parse buf in
 
   (* recursively iterate over packet iterator, printing as we go *)
-  let rec print_packet () = 
-    match packets () with
-      | None -> ()
-      | Some packet -> 
-          incr npackets;
-          printf "#%d|%s\n%!" !npackets (Mrt.to_string packet)
+  let rec print_packet () = match packets () with
+    | None -> ()
+    | Some packet -> 
+        incr npackets;
+        printf "#%d|%s\n%!" !npackets (Mrt.to_string packet);
+        print_packet ()
   in
   print_packet ();
 
