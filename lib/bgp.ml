@@ -209,21 +209,6 @@ cenum attr {
 
 cenum origin { IGP; EGP; INCOMPLETE } as uint8_t
 
-type path_attr = 
-  | Origin of (origin option)
-  | As_path 
-  | Next_hop
-  | Community
-  | Ext_communities
-  | Med
-  | Atomic_aggr
-  | Aggregator
-  | Mp_reach_nlri
-  | Mp_unreach_nlri
-  | As4_path
-
-type path_attrs = path_attr Cstruct.iter
-           
 cstruct ft {
   uint8_t flags;
   uint8_t tc;
@@ -240,7 +225,86 @@ let is_optional f = is_bit 7 f
 let is_transitive f = is_bit 6 f
 let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
-  
+
+cenum aspt {
+  AS_SET = 1;
+  AS_SEQ = 2
+} as uint8_t
+
+cstruct asp {
+  uint8_t t;
+  uint8_t n
+} as big_endian
+
+type asp = Set of int Cstruct.iter | Seq of int Cstruct.iter
+let parse_aspath buf = 
+  let lenf buf = sizeof_asp, get_asp_n buf * 2 in
+  let pf hlen buf = 
+    let t = get_asp_t buf in 
+    let buf = Cstruct.shift buf sizeof_asp in
+    let vs = Cstruct.iter 
+      (fun buf -> 0, 2) 
+      (fun _ buf -> Cstruct.BE.get_uint16 buf 0) 
+      buf
+    in
+    match int_to_aspt t with 
+      | None -> failwith "parse_aspath: unknown segment type"
+      | Some AS_SET -> Set vs 
+      | Some AS_SEQ -> Seq vs
+  in 
+  Cstruct.iter lenf pf buf
+
+let rec aspath_to_string a = 
+  let rec asps_to_string a = match a () with
+    | None -> ""
+    | Some v -> string_of_int v ^ ", " ^ (asps_to_string a)
+  in match a () with
+    | None -> ""
+    | Some Set v -> sprintf "set(%s)" (asps_to_string v)
+    | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
+
+type asp4 = Set of int32 Cstruct.iter | Seq of int32 Cstruct.iter
+let parse_as4path buf = 
+  let lenf buf = sizeof_asp, get_asp_n buf * 4 in
+  let pf hlen buf = 
+    let t = get_asp_t buf in 
+    let buf = Cstruct.shift buf sizeof_asp in
+    let vs = Cstruct.iter 
+      (fun buf -> 0, 4) 
+      (fun _ buf -> Cstruct.BE.get_uint32 buf 0) 
+      buf
+    in
+    match int_to_aspt t with 
+      | None -> failwith "parse_as4path: unknown segment type"
+      | Some AS_SET -> Set vs 
+      | Some AS_SEQ -> Seq vs
+  in 
+  Cstruct.iter lenf pf buf
+
+let rec as4path_to_string a = 
+  let rec asps_to_string a = match a () with
+    | None -> ""
+    | Some v -> sprintf "%ld <- %s" v (asps_to_string a)
+  in match a () with
+    | None -> ""
+    | Some Set v -> sprintf "set(%s)" (asps_to_string v)
+    | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
+
+type path_attr = 
+  | Origin of origin option
+  | As_path of asp Cstruct.iter
+  | Next_hop of Afi.ip4
+  | Community of int32
+  | Ext_communities
+  | Med of int32
+  | Atomic_aggr
+  | Aggregator
+  | Mp_reach_nlri
+  | Mp_unreach_nlri
+  | As4_path of asp4 Cstruct.iter
+
+type path_attrs = path_attr Cstruct.iter
+ 
 let parse_path_attrs buf = 
   let lenf buf = 
     let f = get_ft_flags buf in
@@ -249,26 +313,19 @@ let parse_path_attrs buf =
   let pf hlen buf =
     let h,p = Cstruct.split buf hlen in
     match h |> get_ft_tc |> int_to_attr with
-      | Some ORIGIN -> 
-          let p = Cstruct.get_uint8 p 0 |> int_to_origin in 
-          Origin p
+      | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
             
-      | Some AS_PATH ->
-          As_path
-      | Some AS4_PATH ->
-          As4_path
+      | Some AS_PATH -> As4_path (parse_as4path p)
+      | Some AS4_PATH -> As4_path (parse_as4path p)
 
-      | Some NEXT_HOP ->
-          Next_hop
+      | Some NEXT_HOP -> Next_hop (Cstruct.BE.get_uint32 p 0)
 
-      | Some COMMUNITY ->
-          Community
+      | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
 
       | Some EXT_COMMUNITIES ->
           Ext_communities
 
-      | Some MED ->
-          Med
+      | Some MED -> Med (Cstruct.BE.get_uint32 p 0)
 
       | Some ATOMIC_AGGR ->
           Atomic_aggr
@@ -296,13 +353,24 @@ type update = {
 
 let rec path_attrs_to_string iter = match iter () with
   | None -> ""
-  | Some Origin p -> "ORIGIN; " ^ (path_attrs_to_string iter)
-  | Some As_path -> "AS_PATH; " ^ (path_attrs_to_string iter)
-  | Some As4_path -> "AS4_PATH; " ^ (path_attrs_to_string iter)
-  | Some Next_hop -> "NEXT_HOP; " ^ (path_attrs_to_string iter)
-  | Some Community -> "COMMUNITY; " ^ (path_attrs_to_string iter)
+  | Some Origin v -> 
+      sprintf "ORIGIN(%s); %s" 
+        (match v with None -> "error" | Some v -> origin_to_string v)
+        (path_attrs_to_string iter)
+  | Some As_path v -> 
+      sprintf "AS_PATH(%s); %s"
+        (aspath_to_string v) (path_attrs_to_string iter)
+  | Some As4_path v -> 
+      sprintf "AS4_PATH(%s); %s"
+        (as4path_to_string v) (path_attrs_to_string iter)
+  | Some Next_hop v -> 
+      sprintf "NEXT_HOP(%s); %s" 
+        (Afi.ip4_to_string v) (path_attrs_to_string iter)
+  | Some Community v -> 
+      sprintf "COMMUNITY(%ld:%ld); %s" 
+        (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) (path_attrs_to_string iter)
   | Some Ext_communities -> "EXT_COMMUNITIES; " ^ (path_attrs_to_string iter)
-  | Some Med -> "MED; " ^ (path_attrs_to_string iter)
+  | Some Med v -> sprintf "MED(%ld); %s" v (path_attrs_to_string iter)
   | Some Atomic_aggr -> "ATOMIC_AGGR; " ^ (path_attrs_to_string iter)
   | Some Aggregator -> "AGGREGATOR; " ^ (path_attrs_to_string iter)
   | Some Mp_reach_nlri -> "MP_REACH_NLRI; " ^ (path_attrs_to_string iter)

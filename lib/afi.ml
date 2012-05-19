@@ -38,19 +38,24 @@ cstruct ip6 {
   uint64_t lo
 } as big_endian
 
-type ip = IPv4 of int32 | IPv6 of int64 * int64
-let ip_to_string = function
-  | IPv4 ip -> 
-      sprintf "%ld.%ld.%ld.%ld" 
-        (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l) 
-        (ip >>>  8 &&& 0xff_l) (ip        &&& 0xff_l)
+type ip4 = int32
+let ip4_to_string ip =       
+  sprintf "%ld.%ld.%ld.%ld" 
+    (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l) 
+    (ip >>>  8 &&& 0xff_l) (ip        &&& 0xff_l)
 
-  | IPv6 (hi,lo) -> 
-      sprintf "%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx"
-        (hi >>>> 48 &&&& 0xffff_L) (hi >>>> 32 &&&& 0xffff_L)
-        (hi >>>> 16 &&&& 0xffff_L) (hi         &&&& 0xffff_L)
-        (lo >>>> 48 &&&& 0xffff_L) (lo >>>> 32 &&&& 0xffff_L)
-        (lo >>>> 16 &&&& 0xffff_L) (lo         &&&& 0xffff_L)
+type ip6 = int64 * int64
+let ip6_to_string (hi,lo) = 
+  sprintf "%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx"
+    (hi >>>> 48 &&&& 0xffff_L) (hi >>>> 32 &&&& 0xffff_L)
+    (hi >>>> 16 &&&& 0xffff_L) (hi         &&&& 0xffff_L)
+    (lo >>>> 48 &&&& 0xffff_L) (lo >>>> 32 &&&& 0xffff_L)
+    (lo >>>> 16 &&&& 0xffff_L) (lo         &&&& 0xffff_L)
+
+type ip = IPv4 of ip4 | IPv6 of ip6
+let ip_to_string = function
+  | IPv4 ip -> ip4_to_string ip
+  | IPv6 ip -> ip6_to_string ip
 
 type prefix = ip * Cstruct.uint8
 let prefix_to_string (ip,l) = sprintf "%s/%d" (ip_to_string ip) l

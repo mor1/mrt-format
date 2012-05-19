@@ -25,8 +25,14 @@ val sizeof_ip6: int
 val get_ip6_hi: Cstruct.buf -> Cstruct.uint64
 val get_ip6_lo: Cstruct.buf -> Cstruct.uint64
 
-type ip = IPv4 of int32 | IPv6 of int64 * int64
-val ip_to_string: ip -> string
+type ip4 = int32
+val ip4_to_string : ip4 -> string
+
+type ip6 = int64 * int64
+val ip6_to_string : ip6 -> string
+
+type ip = IPv4 of ip4 | IPv6 of ip6
+val ip_to_string : ip -> string
 
 type prefix = ip * Cstruct.uint8
-val prefix_to_string: prefix -> string
+val prefix_to_string : prefix -> string
