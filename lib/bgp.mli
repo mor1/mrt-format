@@ -17,12 +17,12 @@
 type asn = Asn of int | Asn4 of int32
 val asn_to_string: asn -> string
 
+val pfxlen_to_bytes : int -> int
 val get_nlri4 : Cstruct.buf -> int -> Afi.prefix
 val get_nlri6 : Cstruct.buf -> int -> Afi.prefix
-(*
-val pfxlen_to_bytes : int -> int
+
 type path_attr
-*)
+val path_attrs_to_string : path_attr Cstruct.iter -> string
 
 type t
 val to_string : t -> string

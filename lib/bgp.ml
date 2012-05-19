@@ -292,27 +292,29 @@ type update = {
   nlri: Afi.prefix Cstruct.iter;  
 }
 
+let rec path_attrs_to_string iter = match iter () with
+  | None -> ""
+  | Some Origin p -> "ORIGIN; " ^ (path_attrs_to_string iter)
+  | Some As_path -> "AS_PATH; " ^ (path_attrs_to_string iter)
+  | Some As4_path -> "AS4_PATH; " ^ (path_attrs_to_string iter)
+  | Some Next_hop -> "NEXT_HOP; " ^ (path_attrs_to_string iter)
+  | Some Community -> "COMMUNITY; " ^ (path_attrs_to_string iter)
+  | Some Ext_communities -> "EXT_COMMUNITIES; " ^ (path_attrs_to_string iter)
+  | Some Med -> "MED; " ^ (path_attrs_to_string iter)
+  | Some Atomic_aggr -> "ATOMIC_AGGR; " ^ (path_attrs_to_string iter)
+  | Some Aggregator -> "AGGREGATOR; " ^ (path_attrs_to_string iter)
+  | Some Mp_reach_nlri -> "MP_REACH_NLRI; " ^ (path_attrs_to_string iter)
+  | Some Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ (path_attrs_to_string iter)
+
+let rec nlris_to_string iter = match iter () with
+  | None -> ""
+  | Some p -> (Afi.prefix_to_string p) ^ "; " ^ (nlris_to_string iter)
+
 let update_to_string u = 
-  let rec path_attrs () = match u.path_attrs () with
-    | None -> ""
-    | Some Origin p -> "ORIGIN; " ^ (path_attrs ())
-    | Some As_path -> "AS_PATH; " ^ (path_attrs ())
-    | Some As4_path -> "AS4_PATH; " ^ (path_attrs ())
-    | Some Next_hop -> "NEXT_HOP; " ^ (path_attrs ())
-    | Some Community -> "COMMUNITY; " ^ (path_attrs ())
-    | Some Ext_communities -> "EXT_COMMUNITIES; " ^ (path_attrs ())
-    | Some Med -> "MED; " ^ (path_attrs ())
-    | Some Atomic_aggr -> "ATOMIC_AGGR; " ^ (path_attrs ())
-    | Some Aggregator -> "AGGREGATOR; " ^ (path_attrs ())
-    | Some Mp_reach_nlri -> "MP_REACH_NLRI; " ^ (path_attrs ())
-    | Some Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ (path_attrs ())
-  in
-  let rec nlris iter = match iter () with
-    | None -> ""
-    | Some p -> (Afi.prefix_to_string p) ^ "; " ^ (nlris iter)
-  in 
   sprintf "withdrawn:[%s], path_attrs:[%s], nlri:[%s]" 
-    (nlris u.withdrawn) (path_attrs ()) (nlris u.nlri)
+    (nlris_to_string u.withdrawn) 
+    (path_attrs_to_string u.path_attrs) 
+    (nlris_to_string u.nlri)
 
 type header = unit
 
@@ -343,7 +345,6 @@ let parse buf =
               let rec aux acc bs =
                 if Cstruct.len bs = 0 then acc else (
                   let t,opt, bs = Tlv.get_tlv bs in
-                  printf "T %d\n%!" t;
                   let opt = match int_to_oc t with
                     | None -> failwith "bad option"
                     | Some RESERVED -> Reserved
