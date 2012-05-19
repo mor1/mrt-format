@@ -38,6 +38,29 @@ let get_nlri4 buf off =
     Afi.IPv4 (!v <<< (8*(4 - bl))), pl
   )
 
+let get_nlri6 buf off = 
+  Cstruct.(
+    let pl = get_uint8 buf off in
+    let bl = pfxlen_to_bytes pl in
+    let hi = 
+      let v = ref 0L in
+      let n = min 7 (bl-1) in
+      for i = 0 to n do
+        v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf off+i+1))
+      done;
+      !v <<<< (8*(8 - n))
+    in
+    let lo = 
+      let v = ref 0L in
+      let n = min 15 (bl-1) in
+      for i = 8 to n do
+        v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf off+i+1))
+      done;
+      !v <<<< (8*(8 - n))
+    in 
+    Afi.IPv6 (hi, lo), pl
+  )
+
 let get_partial_ip4 buf = 
   Cstruct.( 
     let v = ref 0l in
@@ -79,69 +102,40 @@ let get_partial buf =
       Afi.IPv4 (get_partial_ip4 ip)
   in (ip,l)
 
+let nlri_iter buf = 
+  let lenf buf = 1, pfxlen_to_bytes (Cstruct.get_uint8 buf 0) in
+  let pf hlen buf = 
+    if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then
+      get_nlri4 buf 1 
+    else
+      get_nlri6 buf 1
+  in
+  Cstruct.iter lenf pf buf
+
 cstruct h {
   uint8_t marker[16];
   uint16_t len;
   uint8_t typ
 } as big_endian
 
-type tc = OPEN | UPDATE | NOTIFICATION | KEEPALIVE | ETC of int
-let tc_to_int = function
-  | OPEN         -> 1
-  | UPDATE       -> 2
-  | NOTIFICATION -> 3
-  | KEEPALIVE    -> 4
-  | ETC n        -> n
-and int_to_tc = function
-  | 1 -> OPEN
-  | 2 -> UPDATE
-  | 3 -> NOTIFICATION
-  | 4 -> KEEPALIVE
-  | n -> ETC n
-and tc_to_string = function
-  | OPEN         -> "OPEN"
-  | UPDATE       -> "UPDATE"
-  | NOTIFICATION -> "NOTIFICATION"
-  | KEEPALIVE    -> "KEEPALIVE"
-  | ETC n        -> sprintf "ETC %d" n
+cenum tc {
+  OPEN         = 1;
+  UPDATE       = 2;
+  NOTIFICATION = 3;
+  KEEPALIVE    = 4
+} as uint8_t
 
-type cc = 
-  | MP_EXT 
-  | ROUTE_REFRESH 
-  | OUTBOUND_ROUTE_FILTERING
-  | MULTIPLE_ROUTES_DESTINATION
-  | EXT_HEXTHOP_ENC
-  | GRACEFUL_RESTART
-  | AS4_SUPPORT
-  | ENHANCED_REFRESH
-let cc_to_int = function
-  | MP_EXT -> 1
-  | ROUTE_REFRESH -> 2
-  | OUTBOUND_ROUTE_FILTERING -> 3
-  | MULTIPLE_ROUTES_DESTINATION -> 4
-  | EXT_HEXTHOP_ENC -> 5
-  | GRACEFUL_RESTART -> 64
-  | AS4_SUPPORT -> 65
-  | ENHANCED_REFRESH -> 70
-and int_to_cc = function
-  | 1 -> MP_EXT
-  | 2 -> ROUTE_REFRESH
-  | 3 -> OUTBOUND_ROUTE_FILTERING
-  | 4 -> MULTIPLE_ROUTES_DESTINATION
-  | 5 -> EXT_HEXTHOP_ENC
-  | 64 -> GRACEFUL_RESTART
-  | 65 -> AS4_SUPPORT
-  | 70 -> ENHANCED_REFRESH
-and cc_to_string = function
-  | MP_EXT -> "MP_EXT"
-  | ROUTE_REFRESH -> "ROUTE_REFRESH"
-  | OUTBOUND_ROUTE_FILTERING -> "OUTBOUND_ROUTE_FILTERING"
-  | MULTIPLE_ROUTES_DESTINATION -> "MULTIPLE_ROUTES_DESTINATION"
-  | EXT_HEXTHOP_ENC -> "EXT_HEXTHOP_ENC"
-  | GRACEFUL_RESTART -> "GRACEFUL_RESTART"
-  | AS4_SUPPORT -> "AS4_SUPPORT"
-  | ENHANCED_REFRESH -> "ENHANCED_REFRESH"
-    
+cenum cc {
+  MP_EXT                      = 1;
+  ROUTE_REFRESH               = 2;
+  OUTBOUND_ROUTE_FILTERING    = 3;
+  MULTIPLE_ROUTES_DESTINATION = 4;
+  EXT_HEXTHOP_ENC             = 5;
+  GRACEFUL_RESTART            = 64;
+  AS4_SUPPORT                 = 65;
+  ENHANCED_REFRESH            = 70
+} as uint8_t
+
 cstruct mp_ext {
   uint16_t afi;
   uint16_t safi
@@ -157,24 +151,15 @@ let capability_to_string = function
   | Ecapability _ -> "UNKNOWN_CAPABILITY"
        
 let parse_capability buf = function
-  | MP_EXT -> Mp_ext (get_mp_ext_afi buf |> Afi.int_to_tc, 
-                      get_mp_ext_safi buf |> Safi.int_to_tc)
-  | _ -> Ecapability buf
+  | Some MP_EXT -> Mp_ext (get_mp_ext_afi buf |> Afi.int_to_tc, 
+                           get_mp_ext_safi buf |> Safi.int_to_tc)
+  | _ -> failwith "unrecognised capability"
 
-type oc = RESERVED | AUTHENTICATION | CAPABILITY
-let oc_to_int = function
-  | RESERVED -> 0
-  | AUTHENTICATION -> 1
-  | CAPABILITY -> 2
-and int_to_oc = function
-  | 0 -> RESERVED
-  | 1 -> AUTHENTICATION
-  | 2 -> CAPABILITY
-  | t -> failwith (sprintf "bad opt %d" t)
-and oc_to_string = function
-  | RESERVED -> "RESERVED"
-  | AUTHENTICATION -> "AUTHENTICATION"
-  | CAPABILITY -> "CAPABILITY"
+cenum oc {
+  RESERVED = 0;
+  AUTHENTICATION = 1;
+  CAPABILITY = 2
+} as uint8_t 
 
 type opt_param =
   | Reserved (* wtf? *)
@@ -255,11 +240,11 @@ let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
   
 let path_attrs_iter buf = 
-  let lenfn buf = 
+  let lenf buf = 
     let f = get_ft_flags buf in
     Cstruct.(if is_extlen f then sizeof_fte,get_fte_len buf else sizeof_ft, get_ft_len buf)
   in
-  let pfn hlen buf =
+  let pf hlen buf =
     let h,p = Cstruct.split buf hlen in
     match h |> get_ft_tc |> int_to_attr with
       | Some ORIGIN -> 
@@ -299,12 +284,12 @@ let path_attrs_iter buf =
           printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
           Cstruct.hexdump p; failwith "unknown path attr"
   in
-  Cstruct.(iter lenfn pfn buf) 
+  Cstruct.iter lenf pf buf
 
 type update = {
-  withdrawn: Afi.prefix list;
-  path_attrs: (unit -> path_attr option);
-  nlri: Afi.prefix list;  
+  withdrawn: Afi.prefix Cstruct.iter;
+  path_attrs: path_attr Cstruct.iter;
+  nlri: Afi.prefix Cstruct.iter;  
 }
 
 let update_to_string u = 
@@ -341,50 +326,56 @@ let payload_to_string = function
 type t = header * payload
 
 let parse buf = 
-  let h,message = Cstruct.split buf sizeof_h in
-  let payload = 
-    match get_h_typ h |> int_to_tc with
-      | OPEN ->
-          let m,opts = Cstruct.split message (get_bgp_open_opt_len message) in
-          let opts = 
-            let rec aux acc bs =
-              if Cstruct.len bs = 0 then acc else (
-                let t,opt, bs = Tlv.get_tlv bs in
-                printf "T %d\n%!" t;
-                let opt = match int_to_oc t with
-                  | RESERVED -> Reserved
-                  | AUTHENTICATION -> Authentication
-                  | CAPABILITY -> 
-                      let t,c, _ = Tlv.get_tlv bs in
-                      Capability (parse_capability c (int_to_cc t))
-                in aux (opt :: acc) bs
-              )
-            in aux [] opts
-          in
-          Open { version = get_bgp_open_version m;
-                 my_as = Asn (get_bgp_open_my_as m);
-                 hold_time = get_bgp_open_hold_time m;
-                 bgp_id = get_bgp_open_bgp_id m;
-                 options = opts;
-               }
-      | UPDATE -> 
-          let withdrawn,bs = 
-            let wl = Cstruct.BE.get_uint16 message 0 in
-            Cstruct.split ~start:2 message wl
-          in
-          let path_attrs,nlri = 
-            let pl = Cstruct.BE.get_uint16 bs 0 in
-            Cstruct.split ~start:2 bs pl
-          in
-          Update {
-            withdrawn = Cstruct.getz get_partial withdrawn;
-            path_attrs = path_attrs_iter path_attrs;
-            nlri = Cstruct.getz get_partial nlri;
-          }
-      | NOTIFICATION -> Notification
-      | KEEPALIVE -> Keepalive
+  let lenf buf = sizeof_h, get_h_len buf - sizeof_h in
+  let pf hlen buf = 
+    let h,p = Cstruct.split buf hlen in
+    let payload = 
+      match get_h_typ h |> int_to_tc with
+        | None -> failwith "pf: bad BGP packet"
+        | Some OPEN ->
+            let m,opts = Cstruct.split p (get_bgp_open_opt_len p) in
+            let opts = 
+              let rec aux acc bs =
+                if Cstruct.len bs = 0 then acc else (
+                  let t,opt, bs = Tlv.get_tlv bs in
+                  printf "T %d\n%!" t;
+                  let opt = match int_to_oc t with
+                    | None -> failwith "bad option"
+                    | Some RESERVED -> Reserved
+                    | Some AUTHENTICATION -> Authentication
+                    | Some CAPABILITY -> 
+                        let t,c, _ = Tlv.get_tlv bs in
+                        Capability (parse_capability c (int_to_cc t))
+                  in aux (opt :: acc) bs
+                )
+              in aux [] opts
+            in
+            Open { version = get_bgp_open_version m;
+                   my_as = Asn (get_bgp_open_my_as m);
+                   hold_time = get_bgp_open_hold_time m;
+                   bgp_id = get_bgp_open_bgp_id m;
+                   options = opts;
+                 }
+        | Some UPDATE -> 
+            let withdrawn,bs = 
+              let wl = Cstruct.BE.get_uint16 p 0 in
+              Cstruct.split ~start:2 p wl
+            in
+            let path_attrs,nlri = 
+              let pl = Cstruct.BE.get_uint16 bs 0 in
+              Cstruct.split ~start:2 bs pl
+            in
+            Update {
+              withdrawn = nlri_iter withdrawn;
+              path_attrs = path_attrs_iter path_attrs;
+              nlri = nlri_iter nlri;
+            }
+        | Some NOTIFICATION -> Notification
+        | Some KEEPALIVE -> Keepalive
+    in
+    ((), payload)
   in
-  ((), payload)
+  Cstruct.iter lenf pf buf
 
 let to_string (h,p) = 
   sprintf "BGP(%s)" (payload_to_string p)

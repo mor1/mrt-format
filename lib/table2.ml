@@ -156,6 +156,7 @@ let parse subtype buf =
     )
   in
   let pf hlen buf = (), (match int_to_tc subtype with
+    | None -> failwith "pf: bad TABLE2 payload"
     | Some PEER_INDEX_TABLE ->
         let itid = get_index_table_bgpid buf in
         if not (Cstruct.shift_left buf sizeof_index_table) then
@@ -181,8 +182,8 @@ let parse subtype buf =
               if not (Cstruct.shift_left p sz) then
                 failwith "peer_entry";
               let asn = Bgp.(match is_bit 1 (* 6 *) pt with
-                | false -> Asn (Bgp.get_asn_v p) 
-                | true -> Asn4 (Bgp.get_asn4_v p)
+                | false -> Asn (Cstruct.BE.get_uint16 p 0) 
+                | true -> Asn4 (Cstruct.BE.get_uint32 p 0)
               ) in
               { id; ip; asn }
             )
