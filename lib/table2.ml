@@ -30,23 +30,11 @@ cstruct index_table {
   uint32_t bgpid
 } as big_endian
 
-let get_name8 ?(off=0) buf = Cstruct.(
-  let len = get_uint8 buf off in
-  let name = sub buf 1 len in
-  if not (shift_left buf (len+1)) then
-    failwith "get_name8: shiftleft"
-  else
-    to_string name, buf
-)
-
-let get_name16 ?(off=0) buf = Cstruct.(
-  let len = BE.get_uint16 buf off in
-  let name = sub buf 2 len in
-  if not (shift_left buf (len+2)) then
-    failwith "get_name16: shiftleft"
-  else 
-    to_string name, buf
-)
+let get_string16 buf = 
+  let name_len = Cstruct.BE.get_uint16 buf 0 in
+  let name = Cstruct.(to_string (sub buf 2 name_len)) in
+  let rest = Cstruct.shift buf (2+name_len) in
+  name, rest
 
 cstruct peer {
   uint8_t typ;
@@ -63,12 +51,9 @@ let peer_to_string p =
   sprintf "id:0x%08lx, ip:%s, asn:%s" 
     p.id (Afi.ip_to_string p.ip) (Bgp.asn_to_string p.asn)
 
-let peers_to_string ps = 
-  let rec aux acc ps = match ps () with
-    | None -> acc
-    | Some p -> sprintf "%s; %s" acc (peer_to_string p)
-  in 
-  aux "" ps
+let rec peers_to_string ps = match ps () with
+  | None -> ""
+  | Some p -> (peer_to_string p) ^ "; " ^ (peers_to_string ps)
 
 cstruct rib_h {
   uint32_t seqno
@@ -87,14 +72,12 @@ type rib = {
 }
 
 let rib_to_string r = 
-  sprintf "peer:%d, otime:%lu, attrs:[]" r.peer_index r.otime 
+  sprintf "peer:%d, otime:%lu, attrs:[%s]" 
+    r.peer_index r.otime "XXX" (* (Bgp.path_attrs_to_string r.attrs) *)
 
-let ribs_to_string rs = 
-  let rec aux acc rs = match rs () with
-    | None -> acc
-    | Some r -> sprintf "%s; %s" acc (rib_to_string r)
-  in
-  aux "" rs
+let rec ribs_to_string rs = match rs () with
+  | None -> ""
+  | Some r -> (rib_to_string r) ^ "; " ^ (ribs_to_string rs)
   
 type header = unit
 
@@ -132,36 +115,27 @@ let to_string (_,p) =
   sprintf "TABLE2()|%s" (payload_to_string p)
 
 let parse subtype buf =
-  let lenf buf = 
-    let hlen = match int_to_tc subtype with
-      | None -> failwith "lenf: bad TABLE2 header"
-      | Some PEER_INDEX_TABLE -> 0
-      | Some (RIB_IPV4_UNICAST|RIB_IPV4_MULTICAST) -> sizeof_rib_h
-      | Some (RIB_IPV6_UNICAST|RIB_IPV6_MULTICAST) -> sizeof_rib_h
-    in hlen, Cstruct.len buf - hlen
-  in
   let parse_ribs hlen buf = 
-    if not (Cstruct.shift_left buf sizeof_rib_h) then
-      failwith "bad ip4_uni rib"
-    else (
-      Cstruct.iter
-        (fun buf -> sizeof_rib, get_rib_alen buf)
-        (fun hlen buf -> 
-          let h,p = Cstruct.split buf hlen in
-          let peer_index = get_rib_peer h in
-          let otime = get_rib_otime h in
-          { peer_index; otime; attrs=p }
-        )
-        buf
-    )
+    let buf = Cstruct.shift buf hlen in
+    Cstruct.iter
+      (fun buf -> 0, sizeof_rib + (get_rib_alen buf))
+      (fun hlen buf -> 
+        let peer_index = get_rib_peer buf in
+        let otime = get_rib_otime buf in
+        let attrs = Cstruct.shift buf sizeof_rib in
+        { peer_index; otime; attrs }
+      )
+      buf
   in
+  let lenf buf = 0, Cstruct.len buf in
   let pf hlen buf = (), (match int_to_tc subtype with
     | None -> failwith "pf: bad TABLE2 payload"
+
     | Some PEER_INDEX_TABLE ->
         let itid = get_index_table_bgpid buf in
-        if not (Cstruct.shift_left buf sizeof_index_table) then
-          failwith "bad peer_index_table";
-        let viewname, buf = get_name16 buf in
+        let buf = Cstruct.shift buf sizeof_index_table in
+        let viewname, buf = get_string16 buf in
+        let buf = Cstruct.shift buf 2 in
         let parse_peer_entries = Cstruct.(
           iter
             (fun buf -> 
@@ -179,8 +153,7 @@ let parse subtype buf =
                 | false -> IPv4 (get_ip4_ip p), sizeof_ip4
                 | true -> IPv6 (get_ip6_hi p, get_ip6_lo p), sizeof_ip6
               ) in
-              if not (Cstruct.shift_left p sz) then
-                failwith "peer_entry";
+              let p = Cstruct.shift p sz in
               let asn = Bgp.(match is_bit 1 (* 6 *) pt with
                 | false -> Asn (Cstruct.BE.get_uint16 p 0) 
                 | true -> Asn4 (Cstruct.BE.get_uint32 p 0)
@@ -194,23 +167,28 @@ let parse subtype buf =
 
     | Some RIB_IPV4_UNICAST ->
         let seqno = get_rib_h_seqno buf in
-        let prefix = Bgp.get_nlri4 buf sizeof_rib_h in
-        Ip4_unicast (seqno, prefix, parse_ribs hlen buf)
+        let (ip,pl) = Bgp.get_nlri4 buf sizeof_rib_h in
+        let hlen = sizeof_rib_h + 1 + (Bgp.pfxlen_to_bytes pl) + 2 in
+        Ip4_unicast (seqno, (ip,pl), parse_ribs hlen buf)
 
     | Some RIB_IPV4_MULTICAST ->
         let seqno = get_rib_h_seqno buf in
-        let prefix = Bgp.get_nlri4 buf sizeof_rib_h in
-        Ip4_multicast (seqno, prefix, parse_ribs hlen buf)
+        let (ip,pl) = Bgp.get_nlri4 buf sizeof_rib_h in
+        let hlen = sizeof_rib_h + 1 + (Bgp.pfxlen_to_bytes pl) + 2 in
+        Ip4_multicast (seqno, (ip,pl), parse_ribs hlen buf)
 
     | Some RIB_IPV6_UNICAST ->
         let seqno = get_rib_h_seqno buf in
-        let prefix = Bgp.get_nlri6 buf sizeof_rib_h in
-        Ip6_unicast (seqno, prefix, parse_ribs hlen buf)
+        let (ip,pl) = Bgp.get_nlri6 buf sizeof_rib_h in
+        let hlen = sizeof_rib_h + 1 + (Bgp.pfxlen_to_bytes pl) + 2 in
+        Ip6_unicast (seqno, (ip,pl), parse_ribs hlen buf)
           
     | Some RIB_IPV6_MULTICAST ->
         let seqno = get_rib_h_seqno buf in
-        let prefix = Bgp.get_nlri6 buf sizeof_rib_h in
-        Ip6_multicast (seqno, prefix, parse_ribs hlen buf)
+        let (ip,pl) = Bgp.get_nlri6 buf sizeof_rib_h in
+        let hlen = sizeof_rib_h + 1 + (Bgp.pfxlen_to_bytes pl) + 2 in
+        Ip6_multicast (seqno, (ip,pl), parse_ribs hlen buf)
   )
   in
   Cstruct.iter lenf pf buf
+
