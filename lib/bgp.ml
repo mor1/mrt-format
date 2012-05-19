@@ -61,37 +61,37 @@ let get_nlri6 buf off =
     Afi.IPv6 (hi, lo), pl
   )
 
-let get_partial_ip4 buf = 
-  Cstruct.( 
-    let v = ref 0l in
-    for i = 0 to (min 3 ((len buf)-1)) do
-      v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf i))
-    done;
-    !v <<< (8*(4 - len buf))
-  )
-
-let get_partial_ip6 buf = 
-  Cstruct.(   
-    let hi = 
-      let v = ref 0L in
-      let n = min 7 ((len buf)-1) in
-      for i = 0 to n do
-        v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf i))
-      done;
-      !v <<<< (8*(8 - n))
-    in
-    let lo = 
-      let v = ref 0L in
-      let n = min 15 ((len buf)-1) in
-      for i = 8 to n do
-        v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf i))
-      done;
-      !v <<<< (8*(8 - n))
-    in 
-    hi, lo
-  )
-
 let get_partial buf = 
+  let get_partial_ip4 buf = 
+    Cstruct.( 
+      let v = ref 0l in
+      for i = 0 to (min 3 ((len buf)-1)) do
+        v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf i))
+      done;
+      !v <<< (8*(4 - len buf))
+    )
+  in
+  let get_partial_ip6 buf = 
+    Cstruct.(   
+      let hi = 
+        let v = ref 0L in
+        let n = min 7 ((len buf)-1) in
+        for i = 0 to n do
+          v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf i))
+        done;
+        !v <<<< (8*(8 - n))
+      in
+      let lo = 
+        let v = ref 0L in
+        let n = min 15 ((len buf)-1) in
+        for i = 8 to n do
+          v := (!v <<<< 8) ++++ (Int64.of_int (get_uint8 buf i))
+        done;
+        !v <<<< (8*(8 - n))
+      in 
+      hi, lo
+    )
+  in
   let l = Cstruct.get_uint8 buf 0 in
   let bl = pfxlen_to_bytes l in
   let ip,bs = Cstruct.split ~start:1 buf bl in
@@ -102,7 +102,7 @@ let get_partial buf =
       Afi.IPv4 (get_partial_ip4 ip)
   in (ip,l)
 
-let nlri_iter buf = 
+let parse_nlris buf = 
   let lenf buf = 0, 1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0)) in
   let pf _ buf = 
     if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then
@@ -221,6 +221,8 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path
+
+type path_attrs = path_attr Cstruct.iter
            
 cstruct ft {
   uint8_t flags;
@@ -239,7 +241,7 @@ let is_transitive f = is_bit 6 f
 let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
   
-let path_attrs_iter buf = 
+let parse_path_attrs buf = 
   let lenf buf = 
     let f = get_ft_flags buf in
     Cstruct.(if is_extlen f then sizeof_fte,get_fte_len buf else sizeof_ft, get_ft_len buf)
@@ -372,9 +374,9 @@ let parse buf =
               Cstruct.split ~start:2 bs pl
             in
             Update {
-              withdrawn = nlri_iter withdrawn;
-              path_attrs = path_attrs_iter path_attrs;
-              nlri = nlri_iter nlri;
+              withdrawn = parse_nlris withdrawn;
+              path_attrs = parse_path_attrs path_attrs;
+              nlri = parse_nlris nlri;
             }
         | Some NOTIFICATION -> Notification
         | Some KEEPALIVE -> Keepalive

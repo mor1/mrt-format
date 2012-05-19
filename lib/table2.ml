@@ -68,12 +68,12 @@ cstruct rib {
 type rib = {
   peer_index: int; (* 16 bit, index into peer_table *)
   otime: int32;
-  attrs: Cstruct.buf; (* Bgp.path_attr Cstruct.iter; *)
+  attrs: Bgp.path_attrs;
 }
 
 let rib_to_string r = 
   sprintf "peer:%d, otime:%lu, attrs:[%s]" 
-    r.peer_index r.otime "XXX" (* (Bgp.path_attrs_to_string r.attrs) *)
+    r.peer_index r.otime (Bgp.path_attrs_to_string r.attrs)
 
 let rec ribs_to_string rs = match rs () with
   | None -> ""
@@ -122,7 +122,7 @@ let parse subtype buf =
       (fun hlen buf -> 
         let peer_index = get_rib_peer buf in
         let otime = get_rib_otime buf in
-        let attrs = Cstruct.shift buf sizeof_rib in
+        let attrs = Bgp.parse_path_attrs (Cstruct.shift buf sizeof_rib) in
         { peer_index; otime; attrs }
       )
       buf

@@ -21,8 +21,9 @@ val pfxlen_to_bytes : int -> int
 val get_nlri4 : Cstruct.buf -> int -> Afi.prefix
 val get_nlri6 : Cstruct.buf -> int -> Afi.prefix
 
-type path_attr
-val path_attrs_to_string : path_attr Cstruct.iter -> string
+type path_attrs
+val path_attrs_to_string : path_attrs -> string
+val parse_path_attrs : Cstruct.buf -> path_attrs
 
 type t
 val to_string : t -> string
