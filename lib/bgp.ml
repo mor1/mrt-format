@@ -33,7 +33,7 @@ let get_nlri4 buf off =
     let pl = get_uint8 buf off in
     let bl = pfxlen_to_bytes pl in
     for i = 0 to bl-1 do
-      v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf off+i+1))
+      v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf (off+i+1)))
     done;
     Afi.IPv4 (!v <<< (8*(4 - bl))), pl
   )
@@ -103,12 +103,12 @@ let get_partial buf =
   in (ip,l)
 
 let nlri_iter buf = 
-  let lenf buf = 1, pfxlen_to_bytes (Cstruct.get_uint8 buf 0) in
-  let pf hlen buf = 
+  let lenf buf = 0, 1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0)) in
+  let pf _ buf = 
     if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then
-      get_nlri4 buf 1 
+      get_nlri4 buf 0
     else
-      get_nlri6 buf 1
+      get_nlri6 buf 0
   in
   Cstruct.iter lenf pf buf
 
@@ -307,7 +307,12 @@ let update_to_string u =
     | Some Mp_reach_nlri -> "MP_REACH_NLRI; " ^ (path_attrs ())
     | Some Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ (path_attrs ())
   in
-  sprintf "withdrawn:[XX], path_attrs:[%s], nlri:[XX]" (path_attrs ())
+  let rec nlris iter = match iter () with
+    | None -> ""
+    | Some p -> (Afi.prefix_to_string p) ^ "; " ^ (nlris iter)
+  in 
+  sprintf "withdrawn:[%s], path_attrs:[%s], nlri:[%s]" 
+    (nlris u.withdrawn) (path_attrs ()) (nlris u.nlri)
 
 type header = unit
 
