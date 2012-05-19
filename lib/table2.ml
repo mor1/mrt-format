@@ -181,8 +181,8 @@ let parse subtype buf =
               if not (Cstruct.shift_left p sz) then
                 failwith "peer_entry";
               let asn = Bgp.(match is_bit 1 (* 6 *) pt with
-                | false -> Asn (get_asn_v p) 
-                | true -> Asn4 (get_asn4_v p)
+                | false -> Asn (Bgp.get_asn_v p) 
+                | true -> Asn4 (Bgp.get_asn4_v p)
               ) in
               { id; ip; asn }
             )
