@@ -35,6 +35,6 @@ let _ =
   let rec packets next = match next () with
     | None -> ()
     | Some p -> incr npackets; process p; packets next
-  in  (Mrt.parse buf) |> packets;
+  in  buf |> Mrt.parse |> packets;
 
   printf "num packets %d\n%!" !npackets
