@@ -38,16 +38,17 @@ setup.data: setup.bin
 
 $(NAME).a: build
 
-lib_test/omrt.native: 
+omrt:
 	cd lib_test \
 	&& ocamlbuild -clean \
 	&& ocamlbuild -classic-display -use-ocamlfind omrt.native
-lib_test/updates.native: 
+
+updates:
 	cd lib_test \
 	&& ocamlbuild -clean \
 	&& ocamlbuild -classic-display -use-ocamlfind updates.native
 
-test-build: lib_test/omrt.native lib_test/updates.native
+test-build: omrt
 
 test: test-build
 	./lib_test/omrt.native ./lib_test/test.mrtd
