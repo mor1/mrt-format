@@ -380,72 +380,64 @@ let update_to_string u =
     (path_attrs_to_string u.path_attrs) 
     (nlris_to_string u.nlri)
 
-type payload = 
+type t = 
   | Open of opent
   | Update of update
   | Notification
   | Keepalive
 
-let payload_to_string = function 
+let to_string = function 
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
   | Update u -> sprintf "UPDATE(%s)" (update_to_string u)
   | Notification -> "NOTIFICATION"
   | Keepalive -> "KEEPALIVE"
 
-type t = unit * payload
-
 let parse ?(caller=Normal) buf = 
   let lenf buf = sizeof_h, get_h_len buf - sizeof_h in
   let pf hlen buf = 
     let h,p = Cstruct.split buf hlen in
-    let payload = 
-      match get_h_typ h |> int_to_tc with
-        | None -> failwith "pf: bad BGP packet"
-        | Some OPEN ->
-            let m,opts = Cstruct.split p (get_opent_opt_len p) in
-            let opts = 
-              let rec aux acc bs =
-                if Cstruct.len bs = 0 then acc else (
-                  let t,opt, bs = Tlv.get_tlv bs in
-                  let opt = match int_to_oc t with
-                    | None -> failwith "bad option"
-                    | Some RESERVED -> Reserved
-                    | Some AUTHENTICATION -> Authentication
-                    | Some CAPABILITY -> 
-                        let t,c, _ = Tlv.get_tlv bs in
-                        Capability (parse_capability c (int_to_cc t))
-                  in aux (opt :: acc) bs
-                )
-              in aux [] opts
-            in
-            Open { version = get_opent_version m;
-                   my_as = Asn (get_opent_my_as m);
-                   hold_time = get_opent_hold_time m;
-                   bgp_id = get_opent_bgp_id m;
-                   options = opts;
-                 }
-        
-        | Some UPDATE -> 
-            let withdrawn,bs = 
-              let wl = Cstruct.BE.get_uint16 p 0 in
-              Cstruct.split ~start:2 p wl
-            in
-            let path_attrs,nlri = 
-              let pl = Cstruct.BE.get_uint16 bs 0 in
-              Cstruct.split ~start:2 bs pl
-            in
-            Update {
-              withdrawn = parse_nlris withdrawn;
-              path_attrs = parse_path_attrs ~caller path_attrs;
-              nlri = parse_nlris nlri;
-            }
+    match get_h_typ h |> int_to_tc with
+      | None -> failwith "pf: bad BGP packet"
+      | Some OPEN ->
+          let m,opts = Cstruct.split p (get_opent_opt_len p) in
+          let opts = 
+            let rec aux acc bs =
+              if Cstruct.len bs = 0 then acc else (
+                let t,opt, bs = Tlv.get_tlv bs in
+                let opt = match int_to_oc t with
+                  | None -> failwith "bad option"
+                  | Some RESERVED -> Reserved
+                  | Some AUTHENTICATION -> Authentication
+                  | Some CAPABILITY -> 
+                      let t,c, _ = Tlv.get_tlv bs in
+                      Capability (parse_capability c (int_to_cc t))
+                in aux (opt :: acc) bs
+              )
+            in aux [] opts
+          in
+          Open { version = get_opent_version m;
+                 my_as = Asn (get_opent_my_as m);
+                 hold_time = get_opent_hold_time m;
+                 bgp_id = get_opent_bgp_id m;
+                 options = opts;
+               }
+            
+      | Some UPDATE -> 
+          let withdrawn,bs = 
+            let wl = Cstruct.BE.get_uint16 p 0 in
+            Cstruct.split ~start:2 p wl
+          in
+          let path_attrs,nlri = 
+            let pl = Cstruct.BE.get_uint16 bs 0 in
+            Cstruct.split ~start:2 bs pl
+          in
+          Update {
+            withdrawn = parse_nlris withdrawn;
+            path_attrs = parse_path_attrs ~caller path_attrs;
+            nlri = parse_nlris nlri;
+          }
 
-        | Some NOTIFICATION -> Notification
-        | Some KEEPALIVE -> Keepalive
-    in
-    ((), payload)
+      | Some NOTIFICATION -> Notification
+      | Some KEEPALIVE -> Keepalive
   in
   Cstruct.iter lenf pf buf
-
-let to_string (h,p) = 
-  sprintf "BGP(%s)" (payload_to_string p)

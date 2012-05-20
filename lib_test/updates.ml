@@ -20,7 +20,7 @@ open Operators
 let npackets = ref 0 
 
 let process = function
-  | h, Mrt.Bgp4mp (_, Bgp4mp.Message Some ((), Bgp.Update u)) 
+  | h, Mrt.Bgp4mp (_, Bgp4mp.Message Some (Bgp.Update u)) 
     -> (printf "%d\t%s\t%s\n%!" 
           !npackets (Mrt.header_to_string h) (Bgp.update_to_string u)
     )

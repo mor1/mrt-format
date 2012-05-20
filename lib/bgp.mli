@@ -27,16 +27,15 @@ val path_attrs_to_string : path_attrs -> string
 val parse_path_attrs : ?caller:caller -> Cstruct.buf -> path_attrs
 
 type opent
+val opent_to_string : opent -> string
+
 type update
-type payload = 
+val update_to_string : update -> string
+
+type t = 
   | Open of opent
   | Update of update
   | Notification
   | Keepalive
-val opent_to_string : opent -> string
-val update_to_string : update -> string
-val payload_to_string : payload -> string
-
-type t = unit * payload
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.buf -> t Cstruct.iter
