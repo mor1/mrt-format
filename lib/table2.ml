@@ -122,7 +122,9 @@ let parse subtype buf =
       (fun hlen buf -> 
         let peer_index = get_rib_peer buf in
         let otime = get_rib_otime buf in
-        let attrs = Bgp.parse_path_attrs (Cstruct.shift buf sizeof_rib) in
+        let attrs = Bgp.parse_path_attrs ~caller:Bgp.Table2
+          (Cstruct.shift buf sizeof_rib)
+        in
         { peer_index; otime; attrs }
       )
       buf
@@ -191,4 +193,3 @@ let parse subtype buf =
   )
   in
   Cstruct.iter lenf pf buf
-

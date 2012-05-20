@@ -21,10 +21,11 @@ val pfxlen_to_bytes : int -> int
 val get_nlri4 : Cstruct.buf -> int -> Afi.prefix
 val get_nlri6 : Cstruct.buf -> int -> Afi.prefix
 
+type caller = Normal | Table2 | Bgp4mp_as4
 type path_attrs
 val path_attrs_to_string : path_attrs -> string
-val parse_path_attrs : Cstruct.buf -> path_attrs
+val parse_path_attrs : ?caller:caller -> Cstruct.buf -> path_attrs
 
 type t
 val to_string : t -> string
-val parse : Cstruct.buf -> t Cstruct.iter
+val parse : ?caller:caller -> Cstruct.buf -> t Cstruct.iter

@@ -17,6 +17,20 @@
 open Printf
 open Operators
 
+(* Lame, lame, lame. RFC6396, sec. 4.3.4 says that AS_PATHs MUST be encoded as
+   4 bytes in a TABLE_DUMP_V2 RIB_ENTRY, no matter what. Similarly in BGP4MP
+   MESSAGE_AS4 and LOCAL_AS4 message types (4.4.3 and 4.4.6). The first
+   section (4.3.4) then says, in the same section, that MP_REACH_NLRI
+   attributes contain only the nexthop address length and address, not the
+   AFI, SAFI and NLRI fields as these are encoded in the RIB entry header.
+
+   We hack around this via the `caller` parameter, typed appropriately; and by
+   forcing aspath to always contain `int32`.
+
+   MRT remains IMO, in random ways, a half-witted format. *)
+
+type caller = Normal | Table2 | Bgp4mp_as4
+                                          
 type asn = Asn of int | Asn4 of int32
 let asn_to_string = function
   | Asn a -> sprintf "%d" a
@@ -25,7 +39,7 @@ let asn_to_string = function
       else 
         sprintf "%ld.%ld" (a >>> 16) (a &&& 0xFFFF_l)
 
-let pfxlen_to_bytes l = ((l+7) / 8)
+let pfxlen_to_bytes l = (l+7) / 8
 
 let get_nlri4 buf off = 
   Cstruct.(
@@ -149,7 +163,7 @@ let capability_to_string = function
   | Mp_ext (a,s) -> 
       sprintf "MP_EXT(%s,%s)" (Afi.tc_to_string a) (Safi.tc_to_string s)
   | Ecapability _ -> "UNKNOWN_CAPABILITY"
-       
+      
 let parse_capability buf = function
   | Some MP_EXT -> Mp_ext (get_mp_ext_afi buf |> Afi.int_to_tc, 
                            get_mp_ext_safi buf |> Safi.int_to_tc)
@@ -236,34 +250,7 @@ cstruct asp {
   uint8_t n
 } as big_endian
 
-type asp = Set of int Cstruct.iter | Seq of int Cstruct.iter
-let parse_aspath buf = 
-  let lenf buf = sizeof_asp, get_asp_n buf * 2 in
-  let pf hlen buf = 
-    let t = get_asp_t buf in 
-    let buf = Cstruct.shift buf sizeof_asp in
-    let vs = Cstruct.iter 
-      (fun buf -> 0, 2) 
-      (fun _ buf -> Cstruct.BE.get_uint16 buf 0) 
-      buf
-    in
-    match int_to_aspt t with 
-      | None -> failwith "parse_aspath: unknown segment type"
-      | Some AS_SET -> Set vs 
-      | Some AS_SEQ -> Seq vs
-  in 
-  Cstruct.iter lenf pf buf
-
-let rec aspath_to_string a = 
-  let rec asps_to_string a = match a () with
-    | None -> ""
-    | Some v -> string_of_int v ^ ", " ^ (asps_to_string a)
-  in match a () with
-    | None -> ""
-    | Some Set v -> sprintf "set(%s)" (asps_to_string v)
-    | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
-
-type asp4 = Set of int32 Cstruct.iter | Seq of int32 Cstruct.iter
+type asp = Set of int32 Cstruct.iter | Seq of int32 Cstruct.iter
 let parse_as4path buf = 
   let lenf buf = sizeof_asp, get_asp_n buf * 4 in
   let pf hlen buf = 
@@ -281,7 +268,7 @@ let parse_as4path buf =
   in 
   Cstruct.iter lenf pf buf
 
-let rec as4path_to_string a = 
+let aspath_to_string a = 
   let rec asps_to_string a = match a () with
     | None -> ""
     | Some v -> sprintf "%ld <- %s" v (asps_to_string a)
@@ -289,6 +276,23 @@ let rec as4path_to_string a =
     | None -> ""
     | Some Set v -> sprintf "set(%s)" (asps_to_string v)
     | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
+
+let parse_aspath buf = 
+  let lenf buf = sizeof_asp, get_asp_n buf * 2 in
+  let pf hlen buf = 
+    let t = get_asp_t buf in 
+    let buf = Cstruct.shift buf sizeof_asp in
+    let vs = Cstruct.iter 
+      (fun buf -> 0, 2) 
+      (fun _ buf -> Cstruct.BE.get_uint16 buf 0 |> Int32.of_int)
+      buf
+    in
+    match int_to_aspt t with 
+      | None -> failwith "parse_aspath: unknown segment type"
+      | Some AS_SET -> Set vs 
+      | Some AS_SEQ -> Seq vs
+  in 
+  Cstruct.iter lenf pf buf
 
 type path_attr = 
   | Origin of origin option
@@ -301,43 +305,33 @@ type path_attr =
   | Aggregator
   | Mp_reach_nlri
   | Mp_unreach_nlri
-  | As4_path of asp4 Cstruct.iter
+  | As4_path of asp Cstruct.iter
 
 type path_attrs = path_attr Cstruct.iter
  
-let parse_path_attrs buf = 
+let parse_path_attrs ?(caller=Normal) buf = 
   let lenf buf = 
     let f = get_ft_flags buf in
-    Cstruct.(if is_extlen f then sizeof_fte,get_fte_len buf else sizeof_ft, get_ft_len buf)
+    Cstruct.(if is_extlen f then sizeof_fte, get_fte_len buf
+      else sizeof_ft, get_ft_len buf)
   in
   let pf hlen buf =
     let h,p = Cstruct.split buf hlen in
     match h |> get_ft_tc |> int_to_attr with
       | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
-            
-      | Some AS_PATH -> As4_path (parse_as4path p)
+      | Some AS_PATH -> (match caller with
+          | Normal -> As_path (parse_aspath p)
+          | Table2 | Bgp4mp_as4 -> As4_path (parse_as4path p) 
+      )
       | Some AS4_PATH -> As4_path (parse_as4path p)
-
       | Some NEXT_HOP -> Next_hop (Cstruct.BE.get_uint32 p 0)
-
-      | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
-
-      | Some EXT_COMMUNITIES ->
-          Ext_communities
-
+      | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0) 
+      | Some EXT_COMMUNITIES -> Ext_communities 
       | Some MED -> Med (Cstruct.BE.get_uint32 p 0)
-
-      | Some ATOMIC_AGGR ->
-          Atomic_aggr
-
-      | Some AGGREGATOR ->
-          Aggregator
-
-      | Some MP_REACH_NLRI ->
-          Mp_reach_nlri
-      
-      | Some MP_UNREACH_NLRI ->
-          Mp_unreach_nlri
+      | Some ATOMIC_AGGR -> Atomic_aggr
+      | Some AGGREGATOR -> Aggregator
+      | Some MP_REACH_NLRI -> Mp_reach_nlri
+      | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
 
       | _ -> 
           printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
@@ -362,7 +356,7 @@ let rec path_attrs_to_string iter = match iter () with
         (aspath_to_string v) (path_attrs_to_string iter)
   | Some As4_path v -> 
       sprintf "AS4_PATH(%s); %s"
-        (as4path_to_string v) (path_attrs_to_string iter)
+        (aspath_to_string v) (path_attrs_to_string iter)
   | Some Next_hop v -> 
       sprintf "NEXT_HOP(%s); %s" 
         (Afi.ip4_to_string v) (path_attrs_to_string iter)
@@ -402,7 +396,7 @@ let payload_to_string = function
 
 type t = header * payload
 
-let parse buf = 
+let parse ?(caller=Normal) buf = 
   let lenf buf = sizeof_h, get_h_len buf - sizeof_h in
   let pf hlen buf = 
     let h,p = Cstruct.split buf hlen in
@@ -432,6 +426,7 @@ let parse buf =
                    bgp_id = get_bgp_open_bgp_id m;
                    options = opts;
                  }
+        
         | Some UPDATE -> 
             let withdrawn,bs = 
               let wl = Cstruct.BE.get_uint16 p 0 in
@@ -443,9 +438,10 @@ let parse buf =
             in
             Update {
               withdrawn = parse_nlris withdrawn;
-              path_attrs = parse_path_attrs path_attrs;
+              path_attrs = parse_path_attrs ~caller path_attrs;
               nlri = parse_nlris nlri;
             }
+
         | Some NOTIFICATION -> Notification
         | Some KEEPALIVE -> Keepalive
     in

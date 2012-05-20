@@ -159,9 +159,10 @@ let parse subtype buf =
           State ((p |> get_state_change_oldstate |> int_to_state),
                  (p |> get_state_change_newstate |> int_to_state))
       | Some MESSAGE -> Message (Bgp.parse p ())
-      | Some MESSAGE_AS4 -> Message_as4 (Bgp.parse p ())
+      | Some MESSAGE_AS4 
+        -> Message_as4 (Bgp.parse ~caller:Bgp.Bgp4mp_as4 p ())
       | Some LOCAL -> Local (Bgp.parse p ())
-      | Some LOCAL_AS4 -> Local_as4 (Bgp.parse p ())
+      | Some LOCAL_AS4 -> Local_as4 (Bgp.parse ~caller:Bgp.Bgp4mp_as4 p ())
       | None -> failwith "pf: bad BGP4MP payload"
     in
     (header, payload)

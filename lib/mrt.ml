@@ -104,4 +104,4 @@ let parse buf =
         -> failwith (sprintf "pf: unsupported type %d" (get_h_mrttype h))
     )
   in
-  Cstruct.(iter lenf pf buf)
+  Cstruct.iter lenf pf buf
