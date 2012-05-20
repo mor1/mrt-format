@@ -38,8 +38,3 @@ let _ =
   in  (Mrt.parse buf) |> packets;
 
   printf "num packets %d\n%!" !npackets
-
-
-
-
-
