@@ -19,7 +19,7 @@ open Operators
 
 let npackets = ref 0 
 
-let process = function
+let updates = function
   | h, Mrt.Bgp4mp (_, Bgp4mp.Message Some (Bgp.Update u)) 
     -> (printf "%d\t%s\t%s\n%!" 
           !npackets (Mrt.header_to_string h) (Bgp.update_to_string u)
@@ -34,7 +34,7 @@ let _ =
 
   let rec packets next = match next () with
     | None -> ()
-    | Some p -> incr npackets; process p; packets next
+    | Some p -> incr npackets; updates p; packets next
   in  buf |> Mrt.parse |> packets;
 
   printf "num packets %d\n%!" !npackets
