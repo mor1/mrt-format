@@ -42,8 +42,12 @@ lib_test/omrt.native:
 	cd lib_test \
 	&& ocamlbuild -clean \
 	&& ocamlbuild -classic-display -use-ocamlfind omrt.native
+lib_test/updates.native: 
+	cd lib_test \
+	&& ocamlbuild -clean \
+	&& ocamlbuild -classic-display -use-ocamlfind updates.native
 
-test-build: lib_test/omrt.native
+test-build: lib_test/omrt.native lib_test/updates.native
 
 test: test-build
 	./lib_test/omrt.native ./lib_test/test.mrtd
