@@ -185,7 +185,7 @@ let opt_param_to_string = function
   | Authentication -> "AUTH"
   | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
 
-cstruct bgp_open {
+cstruct opent {
   uint8_t version;
   uint16_t my_as;
   uint16_t hold_time;
@@ -193,7 +193,7 @@ cstruct bgp_open {
   uint8_t opt_len
 } as big_endian
 
-type bgp_open = {
+type opent = {
   version: int;
   my_as: asn;
   hold_time: int;
@@ -201,7 +201,7 @@ type bgp_open = {
   options: opt_param list;
 }
 
-let bgp_open_to_string o = 
+let opent_to_string o = 
   sprintf "version:%d, my_as:%s, hold_time:%d, bgp_id:0x%08lx, options:[%s]"
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id 
     (o.options ||> opt_param_to_string |> String.concat "; ")
@@ -380,21 +380,19 @@ let update_to_string u =
     (path_attrs_to_string u.path_attrs) 
     (nlris_to_string u.nlri)
 
-type header = unit
-
 type payload = 
-  | Open of bgp_open
+  | Open of opent
   | Update of update
   | Notification
   | Keepalive
 
 let payload_to_string = function 
-  | Open o -> sprintf "OPEN(%s)" (bgp_open_to_string o)
+  | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
   | Update u -> sprintf "UPDATE(%s)" (update_to_string u)
   | Notification -> "NOTIFICATION"
   | Keepalive -> "KEEPALIVE"
 
-type t = header * payload
+type t = unit * payload
 
 let parse ?(caller=Normal) buf = 
   let lenf buf = sizeof_h, get_h_len buf - sizeof_h in
@@ -404,7 +402,7 @@ let parse ?(caller=Normal) buf =
       match get_h_typ h |> int_to_tc with
         | None -> failwith "pf: bad BGP packet"
         | Some OPEN ->
-            let m,opts = Cstruct.split p (get_bgp_open_opt_len p) in
+            let m,opts = Cstruct.split p (get_opent_opt_len p) in
             let opts = 
               let rec aux acc bs =
                 if Cstruct.len bs = 0 then acc else (
@@ -420,10 +418,10 @@ let parse ?(caller=Normal) buf =
                 )
               in aux [] opts
             in
-            Open { version = get_bgp_open_version m;
-                   my_as = Asn (get_bgp_open_my_as m);
-                   hold_time = get_bgp_open_hold_time m;
-                   bgp_id = get_bgp_open_bgp_id m;
+            Open { version = get_opent_version m;
+                   my_as = Asn (get_opent_my_as m);
+                   hold_time = get_opent_hold_time m;
+                   bgp_id = get_opent_bgp_id m;
                    options = opts;
                  }
         

@@ -14,6 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t
-val to_string: t -> string
+type header
+val header_to_string : header -> string
+
+type payload = 
+  | Bgp4mp of Bgp4mp.t
+  | Table of Table.t
+  | Table2 of Table2.t
+  | Unknown of Cstruct.buf
+val payload_to_string : payload -> string
+
+type t = header * payload
+val to_string : t -> string
 val parse : Cstruct.buf -> t Cstruct.iter

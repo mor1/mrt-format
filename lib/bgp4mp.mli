@@ -14,6 +14,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type t
-val to_string: t -> string
-val parse: int -> Cstruct.buf -> t Cstruct.iter
+type state
+
+type header
+val header_to_string : header -> string
+
+type payload = 
+  | State of state option * state option
+  | State_as4 of state option * state option
+  | Message of Bgp.t option
+  | Message_as4 of Bgp.t option
+  | Local of Bgp.t option
+  | Local_as4 of Bgp.t option
+val payload_to_string : payload -> string
+
+type t = header * payload
+val to_string : t -> string
+val parse : int -> Cstruct.buf -> t Cstruct.iter
