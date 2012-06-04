@@ -113,21 +113,22 @@ let parse subtype buf =
            IPv6 ((get_h6_local_ip_hi bs), (get_h6_local_ip_lo bs)))
     )
   in
-  let lenf buf = 
-    let hlen, afi = match int_to_tc subtype with 
-      | Some (MESSAGE|LOCAL|STATE) -> sizeof_h, get_h_afi buf
-      | Some (MESSAGE_AS4|LOCAL_AS4|STATE_AS4)
-        -> sizeof_h_as4, get_h_as4_afi buf
-      | None -> failwith "lenf: bad BGP4MP header"
+  let lenf buf = Some (Cstruct.len buf) in 
+  let pf buf = 
+    let hlen =     
+      let hlen, afi = match int_to_tc subtype with 
+        | Some (MESSAGE|LOCAL|STATE) -> sizeof_h, get_h_afi buf
+        | Some (MESSAGE_AS4|LOCAL_AS4|STATE_AS4)
+          -> sizeof_h_as4, get_h_as4_afi buf
+        | None -> failwith "lenf: bad BGP4MP header"
+      in
+      let ipslen = Afi.(match int_to_tc afi with
+        | IP4 -> sizeof_h4
+        | IP6 -> sizeof_h6
+      )
+      in
+      hlen+ipslen
     in
-    let ipslen = Afi.(match int_to_tc afi with
-      | IP4 -> sizeof_h4
-      | IP6 -> sizeof_h6
-    )
-    in
-    hlen+ipslen, Cstruct.len buf - hlen-ipslen
-  in
-  let pf hlen buf = 
     let h,p = Cstruct.split buf hlen in
     let header = match int_to_tc subtype with 
       | Some (MESSAGE|LOCAL|STATE) ->

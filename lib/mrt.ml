@@ -66,16 +66,14 @@ let to_string (h,p) =
   sprintf "%s|%s" (header_to_string h) (payload_to_string p)
 
 let parse buf = 
-  let lenf buf = 
-    let hlen = match buf |> get_h_mrttype |> int_to_tc with
+  let hlen buf = match buf |> get_h_mrttype |> int_to_tc with
       | None -> failwith "lenf: bad MRT header"
       | Some (BGP4MP_ET|OSPF3_ET|ISIS_ET) -> sizeof_h + sizeof_et
       | Some (OSPF2|OSPF3|ISIS|TABLE|TABLE2|BGP4MP) -> sizeof_h
-    in
-    let plen = Int32.to_int (get_h_len buf) in
-    hlen, plen
   in
-  let pf hlen buf = 
+  let lenf buf = Some (hlen buf + Int32.to_int (get_h_len buf)) in
+  let pf buf = 
+    let hlen = hlen buf in
     let h,p = Cstruct.split buf hlen in 
     let header =
       let usec = 

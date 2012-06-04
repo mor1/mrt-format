@@ -117,8 +117,8 @@ let get_partial buf =
   in (ip,l)
 
 let parse_nlris buf = 
-  let lenf buf = 0, 1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0)) in
-  let pf _ buf = 
+  let lenf buf = Some (1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0))) in
+  let pf buf = 
     if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then
       get_nlri4 buf 0
     else
@@ -252,13 +252,13 @@ cstruct asp {
 
 type asp = Set of int32 Cstruct.iter | Seq of int32 Cstruct.iter
 let parse_as4path buf = 
-  let lenf buf = sizeof_asp, get_asp_n buf * 4 in
-  let pf hlen buf = 
+  let lenf buf = Some (sizeof_asp + get_asp_n buf*4) in
+  let pf buf = 
     let t = get_asp_t buf in 
     let buf = Cstruct.shift buf sizeof_asp in
     let vs = Cstruct.iter 
-      (fun buf -> 0, 4) 
-      (fun _ buf -> Cstruct.BE.get_uint32 buf 0) 
+      (fun buf -> Some 4) 
+      (fun buf -> Cstruct.BE.get_uint32 buf 0) 
       buf
     in
     match int_to_aspt t with 
@@ -278,13 +278,13 @@ let aspath_to_string a =
     | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
 
 let parse_aspath buf = 
-  let lenf buf = sizeof_asp, get_asp_n buf * 2 in
-  let pf hlen buf = 
+  let lenf buf = Some (sizeof_asp + get_asp_n buf * 2) in
+  let pf buf = 
     let t = get_asp_t buf in 
     let buf = Cstruct.shift buf sizeof_asp in
     let vs = Cstruct.iter 
-      (fun buf -> 0, 2) 
-      (fun _ buf -> Cstruct.BE.get_uint16 buf 0 |> Int32.of_int)
+      (fun buf -> Some 2) 
+      (fun buf -> Cstruct.BE.get_uint16 buf 0 |> Int32.of_int)
       buf
     in
     match int_to_aspt t with 
@@ -312,10 +312,13 @@ type path_attrs = path_attr Cstruct.iter
 let parse_path_attrs ?(caller=Normal) buf = 
   let lenf buf = 
     let f = get_ft_flags buf in
-    Cstruct.(if is_extlen f then sizeof_fte, get_fte_len buf
-      else sizeof_ft, get_ft_len buf)
+    Some Cstruct.(if is_extlen f then sizeof_fte + get_fte_len buf
+      else sizeof_ft + get_ft_len buf)
   in
-  let pf hlen buf =
+  let pf buf =
+    let hlen = 
+      if buf |> get_ft_flags |> is_extlen then sizeof_fte else sizeof_ft
+    in
     let h,p = Cstruct.split buf hlen in
     match h |> get_ft_tc |> int_to_attr with
       | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
@@ -393,8 +396,9 @@ let to_string = function
   | Keepalive -> "KEEPALIVE"
 
 let parse ?(caller=Normal) buf = 
-  let lenf buf = sizeof_h, get_h_len buf - sizeof_h in
-  let pf hlen buf = 
+  let lenf buf = Some (get_h_len buf) in
+  let pf buf = 
+    let hlen = sizeof_h in
     let h,p = Cstruct.split buf hlen in
     match get_h_typ h |> int_to_tc with
       | None -> failwith "pf: bad BGP packet"

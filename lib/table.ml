@@ -70,12 +70,13 @@ let to_string (h,p) =
   sprintf "TABLE(%s)|%s" (header_to_string h) (payload_to_string p)
 
 let parse subtype buf = 
-  let lenf buf = Afi.(match int_to_tc subtype with
-    | IP4 -> sizeof_h4, Cstruct.len buf - sizeof_h4
-    | IP6 -> sizeof_h6, Cstruct.len buf - sizeof_h6
-  )
-  in
-  let pf hlen buf = 
+  let lenf buf = Some (Cstruct.len buf) in
+  let pf buf = 
+    let hlen = Afi.(match int_to_tc subtype with
+      | IP4 -> sizeof_h4
+      | IP6 -> sizeof_h6
+    )
+    in
     let h,_ = Cstruct.split buf hlen in
     let header = Afi.(match int_to_tc subtype with
       | IP4 -> { viewno=get_h4_viewno h;

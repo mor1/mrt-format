@@ -118,8 +118,8 @@ let parse subtype buf =
   let parse_ribs hlen buf = 
     let buf = Cstruct.shift buf hlen in
     Cstruct.iter
-      (fun buf -> 0, sizeof_rib + (get_rib_alen buf))
-      (fun hlen buf -> 
+      (fun buf -> Some (sizeof_rib + (get_rib_alen buf)))
+      (fun buf -> 
         let peer_index = get_rib_peer buf in
         let otime = get_rib_otime buf in
         let attrs = Bgp.parse_path_attrs ~caller:Bgp.Table2
@@ -129,8 +129,8 @@ let parse subtype buf =
       )
       buf
   in
-  let lenf buf = 0, Cstruct.len buf in
-  let pf hlen buf = (), (match int_to_tc subtype with
+  let lenf buf = Some (Cstruct.len buf) in
+  let pf buf = (), (match int_to_tc subtype with
     | None -> failwith "pf: bad TABLE2 payload"
 
     | Some PEER_INDEX_TABLE ->
@@ -145,9 +145,10 @@ let parse subtype buf =
               let plen = (if is_bit 0 (* 7 *) pt then 16 else 4)
                 + (if is_bit 1 (* 6 *) pt then 4 else 2)
               in
-              (sizeof_peer, plen)
+              Some (sizeof_peer + plen)
             )
-            (fun hlen buf -> 
+            (fun buf -> 
+              let hlen = sizeof_peer in
               let h,p = Cstruct.split buf hlen in
               let pt = get_peer_typ h in
               let id = get_peer_bgpid h in
