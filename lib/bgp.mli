@@ -18,13 +18,13 @@ type asn = Asn of int | Asn4 of int32
 val asn_to_string: asn -> string
 
 val pfxlen_to_bytes : int -> int
-val get_nlri4 : Cstruct.buf -> int -> Afi.prefix
-val get_nlri6 : Cstruct.buf -> int -> Afi.prefix
+val get_nlri4 : Cstruct.t -> int -> Afi.prefix
+val get_nlri6 : Cstruct.t -> int -> Afi.prefix
 
 type caller = Normal | Table2 | Bgp4mp_as4
 type path_attrs
 val path_attrs_to_string : path_attrs -> string
-val parse_path_attrs : ?caller:caller -> Cstruct.buf -> path_attrs
+val parse_path_attrs : ?caller:caller -> Cstruct.t -> path_attrs
 
 type opent
 val opent_to_string : opent -> string
@@ -32,10 +32,10 @@ val opent_to_string : opent -> string
 type update
 val update_to_string : update -> string
 
-type t = 
+type t =
   | Open of opent
   | Update of update
   | Notification
   | Keepalive
 val to_string : t -> string
-val parse : ?caller:caller -> Cstruct.buf -> t Cstruct.iter
+val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter

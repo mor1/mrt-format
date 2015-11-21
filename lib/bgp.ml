@@ -157,7 +157,7 @@ cstruct mp_ext {
 
 type capability =
   | Mp_ext of Afi.tc * Safi.tc
-  | Ecapability of Cstruct.buf
+  | Ecapability of Cstruct.t
 
 let capability_to_string = function
   | Mp_ext (a,s) ->

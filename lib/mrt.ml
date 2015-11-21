@@ -51,7 +51,7 @@ type payload =
   | Bgp4mp of Bgp4mp.t
   | Table of Table.t
   | Table2 of Table2.t
-  | Unknown of Cstruct.buf
+  | Unknown of Cstruct.t
 
 let payload_to_string p = sprintf "%s" (match p with
   | Bgp4mp p  -> Bgp4mp.to_string p

@@ -30,4 +30,4 @@ val payload_to_string : payload -> string
 
 type t = header * payload
 val to_string : t -> string
-val parse : int -> Cstruct.buf -> t Cstruct.iter
+val parse : int -> Cstruct.t -> t Cstruct.iter

@@ -19,11 +19,11 @@ val int_to_tc: int -> tc
 val tc_to_string: tc -> string
 
 val sizeof_ip4: int
-val get_ip4_ip: Cstruct.buf -> Cstruct.uint32
+val get_ip4_ip: Cstruct.t -> Cstruct.uint32
 
 val sizeof_ip6: int
-val get_ip6_hi: Cstruct.buf -> Cstruct.uint64
-val get_ip6_lo: Cstruct.buf -> Cstruct.uint64
+val get_ip6_hi: Cstruct.t -> Cstruct.uint64
+val get_ip6_lo: Cstruct.t -> Cstruct.uint64
 
 type ip4 = int32
 val ip4_to_string : ip4 -> string
