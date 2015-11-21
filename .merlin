@@ -1,0 +1,3 @@
+PKG cstruct cstruct.syntax
+B _build/**
+B _build/lib_test
