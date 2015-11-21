@@ -1,37 +1,43 @@
-OASISFormat: 0.3
-OCamlVersion: >= 3.12
+OASISFormat: 0.4
 Name:        Mrt
 Version:     0.1
+Synopsis:    MRT parsing
 Authors:     Richard Mortier
 Homepage:    http://github.com/mor1/ocaml-mrt
 License:     ISC
-Synopsis:    MRT parsing
-Plugins:     META (0.3)
 BuildTools:  ocamlbuild
 
-Library mrt
-  Path:         lib
-  Findlibname:  mrt
-  Modules:      Operators, Afi, Safi, Tlv, Bgp, Mrt, Table, Bgp4mp, Table2
-  BuildDepends: cstruct, cstruct.syntax
+AlphaFeatures: ocamlbuild_more_args, pure_interface
 
-Document mrt
-  Title:                API reference for mrt
-  Type:                 ocamlbuild (0.1.0)
-  InstallDir:           $htmldir/mrt
-  BuildTools+:          ocamldoc
-  XOCamlbuildPath:      lib
+Plugins:     META (0.4), DevFiles (0.4)
+XDevFilesMakefileNoTargets: clean, uninstall
+XDevFilesEnableConfigure:   false
+
+Library "mrt"
+  CompiledObject:   best
+  Path:             lib/
+  FindlibName:      mrt
+  Modules:          Operators, Afi, Safi, Tlv, Bgp, Mrt, Table, Bgp4mp, Table2
+  BuildDepends:     cstruct, cstruct.syntax
+
+Document "mrt"
+  Type:             OCamlbuild (0.4)
+  BuildTools+:      ocamldoc
+  Title:            MRT parsers API reference
+  Install:          true
+  PostCommand:      cp doc/style.css tftp.docdir/
+  XOCamlbuildPath:  lib/
+  XOCamlbuildExtraArgs:
+    "-docflags '-colorize-code -short-functors -short-paths -charset utf-8'"
   XOCamlbuildLibraries: mrt
 
+Executable "omrt"
+  Install:         false
+  Path:            lib_test
+  MainIs:          omrt.ml
+  CompiledObject:  native
+  BuildDepends:    mrt, bigarray
+  BuildTools:      ocamlfind
 
-#Executable omrt
-#  Install:        false
-#  Path:           lib_test
-#  MainIs:         omrt.ml
-#  CompiledObject:  native
-#  BuildDepends:   mrt, bigarray
-#  BuildTools: ocamlfind
-#
-#Test "main"
-#  Command: $omrt test.mrtd
-
+Test "main"
+  Command: $omrt test.mrtd

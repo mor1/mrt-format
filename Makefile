@@ -1,54 +1,39 @@
-.PHONY: all clean distclean setup build doc install test-build test 
-all: build
+-include Makefile.config
 
-NAME=mrt
+# OASIS_START
+# DO NOT EDIT (digest: 343ec959150e53c69f8ddebf984af100)
 
-export OCAMLRUNPARAM=b
+SETUP = ocaml setup.ml
 
-clean: setup.data
-	./setup.bin -clean
+build: setup.data
+	$(SETUP) -build $(BUILDFLAGS)
 
-distclean: setup.data
-	./setup.bin -distclean
-	$(RM) setup.bin
+doc: setup.data build
+	$(SETUP) -doc $(DOCFLAGS)
 
-setup: setup.data
+test: setup.data build
+	$(SETUP) -test $(TESTFLAGS)
 
-build: setup.data $(wildcard lib/*.ml)
-	./setup.bin -build
+all:
+	$(SETUP) -all $(ALLFLAGS)
 
-doc: setup.data setup.bin
-	./setup.bin -doc
+install: setup.data
+	$(SETUP) -install $(INSTALLFLAGS)
 
-install: $(NAME).a
-	ocamlfind remove $(NAME)
-	./setup.bin -install
+reinstall: setup.data
+	$(SETUP) -reinstall $(REINSTALLFLAGS)
 
-setup.ml: _oasis
-	oasis setup
+distclean:
+	$(SETUP) -distclean $(DISTCLEANFLAGS)
 
-setup.bin: setup.ml
-	ocamlopt.opt -o $@ $< || ocamlopt -o $@ $< || ocamlc -o $@ $<
-	$(RM) setup.cmx setup.cmi setup.o setup.cmo
+setup.data:
+	$(SETUP) -configure $(CONFIGUREFLAGS)
 
-setup.data: setup.bin
-	./setup.bin -configure --enable-tests
-#		--override ocamlbuildflags -classic-display
+configure:
+	$(SETUP) -configure $(CONFIGUREFLAGS)
 
+.PHONY: build doc test all install reinstall distclean configure
 
-$(NAME).a: build
+# OASIS_STOP
 
-omrt:
-	cd lib_test \
-	&& ocamlbuild -clean \
-	&& ocamlbuild -classic-display -use-ocamlfind omrt.native
-
-updates:
-	cd lib_test \
-	&& ocamlbuild -clean \
-	&& ocamlbuild -classic-display -use-ocamlfind updates.native
-
-test-build: omrt
-
-test: test-build
-	./lib_test/omrt.native ./lib_test/test.mrtd
+-include Makefile.local
