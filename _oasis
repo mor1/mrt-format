@@ -25,7 +25,7 @@ Document "mrt"
   BuildTools+:      ocamldoc
   Title:            MRT parsers API reference
   Install:          true
-  PostCommand:      cp doc/style.css tftp.docdir/
+  PostCommand:      cp doc/style.css mrt.docdir/
   XOCamlbuildPath:  lib/
   XOCamlbuildExtraArgs:
     "-docflags '-colorize-code -short-functors -short-paths -charset utf-8'"
