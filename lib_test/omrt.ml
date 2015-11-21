@@ -17,14 +17,17 @@
 open Printf
 open Operators
 
-let _ = 
+let _ =
   (* global packet counter *)
   let npackets = ref 0 in
-  
+
   (* open file, create buf *)
   let fn = Sys.argv.(1) in
   let fd = Unix.(openfile fn [O_RDONLY] 0) in
-  let buf = Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1)) in
+  let buf =
+    let ba = Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1)) in
+    Cstruct.of_bigarray ba
+  in
   printf "file length %d\n%!" (Cstruct.len buf);
 
   (* generate packet iterator *)
@@ -33,7 +36,7 @@ let _ =
   (* recursively iterate over packet iterator, printing as we go *)
   let rec print_packet () = match packets () with
     | None -> ()
-    | Some packet -> 
+    | Some packet ->
         incr npackets;
         printf "#%d|%s\n%!" !npackets (Mrt.to_string packet);
         print_packet ()

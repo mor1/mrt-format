@@ -1,5 +1,6 @@
 _build
+*.native
+
 setup.bin
 setup.data
 setup.log
-lib_test/omrt.native
