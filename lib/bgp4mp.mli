@@ -19,7 +19,7 @@ type state
 type header
 val header_to_string : header -> string
 
-type payload = 
+type payload =
   | State of state option * state option
   | State_as4 of state option * state option
   | Message of Bgp.t option

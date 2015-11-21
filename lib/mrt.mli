@@ -17,7 +17,7 @@
 type header
 val header_to_string : header -> string
 
-type payload = 
+type payload =
   | Bgp4mp of Bgp4mp.t
   | Table of Table.t
   | Table2 of Table2.t

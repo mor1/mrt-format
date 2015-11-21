@@ -15,7 +15,7 @@
  *)
 
 open Operators
-open Printf 
+open Printf
 
 type tc = IP4 | IP6
 let tc_to_int = function
@@ -27,7 +27,7 @@ and int_to_tc = function
   | n -> invalid_arg (sprintf "Afi.int_to_tc (%d)" n)
 and tc_to_string = function
   | IP4 -> "IPv4"
-  | IP6 -> "IPv6"      
+  | IP6 -> "IPv6"
 
 cstruct ip4 {
   uint32_t ip
@@ -39,13 +39,13 @@ cstruct ip6 {
 } as big_endian
 
 type ip4 = int32
-let ip4_to_string ip =       
-  sprintf "%ld.%ld.%ld.%ld" 
-    (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l) 
+let ip4_to_string ip =
+  sprintf "%ld.%ld.%ld.%ld"
+    (ip >>> 24 &&& 0xff_l) (ip >>> 16 &&& 0xff_l)
     (ip >>>  8 &&& 0xff_l) (ip        &&& 0xff_l)
 
 type ip6 = int64 * int64
-let ip6_to_string (hi,lo) = 
+let ip6_to_string (hi,lo) =
   sprintf "%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx:%04Lx"
     (hi >>>> 48 &&&& 0xffff_L) (hi >>>> 32 &&&& 0xffff_L)
     (hi >>>> 16 &&&& 0xffff_L) (hi         &&&& 0xffff_L)

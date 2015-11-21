@@ -23,9 +23,9 @@
 (** Pipe. *)
 let (|>) x f = f x
 (** Functor pipe. *)
-let (>>) f g x = g (f x) 
+let (>>) f g x = g (f x)
 (** Element-wise pipe. *)
-let (||>) l f = List.map f l 
+let (||>) l f = List.map f l
 
 (** 32 and 64 bit arithmetic and logic operations. *)
 
@@ -50,4 +50,3 @@ let (>>>>) x y = Int64.shift_right_logical x y
 
 (** Test if bit n is set in bits. *)
 let is_bit n bits = 1 = (((1 lsl n) land bits)  lsr n)
-

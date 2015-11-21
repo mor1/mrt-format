@@ -15,7 +15,7 @@
  *)
 
 open Printf
-    
+
 cstruct h4 {
   uint16_t viewno;
   uint16_t seqno;
@@ -53,9 +53,9 @@ type header = {
   peer_as: Bgp.asn;
 }
 
-let header_to_string h = 
+let header_to_string h =
   sprintf "viewno:%d, seqno:%d, status:%d, otime:%ld, peer_ip:%s, peer_as:%s, prefix:%s/%d"
-    h.viewno h.seqno h.status h.otime 
+    h.viewno h.seqno h.status h.otime
     (Afi.ip_to_string h.peer_ip) (Bgp.asn_to_string h.peer_as)
     (Afi.ip_to_string h.prefix) h.pfxlen
 
@@ -66,12 +66,12 @@ let payload_to_string = function
 
 type t = header * payload
 
-let to_string (h,p) = 
+let to_string (h,p) =
   sprintf "TABLE(%s)|%s" (header_to_string h) (payload_to_string p)
 
-let parse subtype buf = 
+let parse subtype buf =
   let lenf buf = Some (Cstruct.len buf) in
-  let pf buf = 
+  let pf buf =
     let hlen = Afi.(match int_to_tc subtype with
       | IP4 -> sizeof_h4
       | IP6 -> sizeof_h6

@@ -39,7 +39,7 @@ cstruct h {
 cstruct et {
   uint32_t ts_usec
 } as big_endian
-    
+
 type header = {
   ts_sec: int32;
   ts_usec: int32;
@@ -47,13 +47,13 @@ type header = {
 
 let header_to_string h = sprintf "%ld.%06ld" h.ts_sec h.ts_usec
 
-type payload = 
+type payload =
   | Bgp4mp of Bgp4mp.t
   | Table of Table.t
   | Table2 of Table2.t
   | Unknown of Cstruct.buf
 
-let payload_to_string p = sprintf "%s" (match p with 
+let payload_to_string p = sprintf "%s" (match p with
   | Bgp4mp p  -> Bgp4mp.to_string p
   | Table p   -> Table.to_string p
   | Table2 p  -> Table2.to_string p
@@ -65,19 +65,19 @@ type t = header * payload
 let to_string (h,p) =
   sprintf "%s|%s" (header_to_string h) (payload_to_string p)
 
-let parse buf = 
+let parse buf =
   let hlen buf = match buf |> get_h_mrttype |> int_to_tc with
       | None -> failwith "lenf: bad MRT header"
       | Some (BGP4MP_ET|OSPF3_ET|ISIS_ET) -> sizeof_h + sizeof_et
       | Some (OSPF2|OSPF3|ISIS|TABLE|TABLE2|BGP4MP) -> sizeof_h
   in
   let lenf buf = Some (hlen buf + Int32.to_int (get_h_len buf)) in
-  let pf buf = 
+  let pf buf =
     let hlen = hlen buf in
-    let h,p = Cstruct.split buf hlen in 
+    let h,p = Cstruct.split buf hlen in
     let header =
-      let usec = 
-        if hlen = sizeof_h + sizeof_et then get_et_ts_usec h else 0l 
+      let usec =
+        if hlen = sizeof_h + sizeof_et then get_et_ts_usec h else 0l
       in
       { ts_sec = get_h_ts_sec h;
         ts_usec = usec;

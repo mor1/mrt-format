@@ -30,7 +30,7 @@ cstruct index_table {
   uint32_t bgpid
 } as big_endian
 
-let get_string16 buf = 
+let get_string16 buf =
   let name_len = Cstruct.BE.get_uint16 buf 0 in
   let name = Cstruct.(to_string (sub buf 2 name_len)) in
   let rest = Cstruct.shift buf (2+name_len) in
@@ -47,8 +47,8 @@ type peer = {
   asn: Bgp.asn;
 }
 
-let peer_to_string p = 
-  sprintf "id:0x%08lx, ip:%s, asn:%s" 
+let peer_to_string p =
+  sprintf "id:0x%08lx, ip:%s, asn:%s"
     p.id (Afi.ip_to_string p.ip) (Bgp.asn_to_string p.asn)
 
 let rec peers_to_string ps = match ps () with
@@ -71,17 +71,17 @@ type rib = {
   attrs: Bgp.path_attrs;
 }
 
-let rib_to_string r = 
-  sprintf "peer:%d, otime:%lu, attrs:[%s]" 
+let rib_to_string r =
+  sprintf "peer:%d, otime:%lu, attrs:[%s]"
     r.peer_index r.otime (Bgp.path_attrs_to_string r.attrs)
 
 let rec ribs_to_string rs = match rs () with
   | None -> ""
   | Some r -> (rib_to_string r) ^ "; " ^ (ribs_to_string rs)
-  
+
 type header = unit
 
-type payload = 
+type payload =
   | Index_table of int32 * string * peer Cstruct.iter
   | Ip4_unicast of int32 * Afi.prefix * rib Cstruct.iter
   | Ip4_multicast of int32 * Afi.prefix * rib Cstruct.iter
@@ -93,7 +93,7 @@ type t = header * payload
 let to_string (_,p) =
   let payload_to_string = function
     | Index_table (id, n, peers) ->
-        sprintf "INDEX_TABLE(bgpid:0x%08lx, name:\"%s\", peers:[%s])" 
+        sprintf "INDEX_TABLE(bgpid:0x%08lx, name:\"%s\", peers:[%s])"
           id n (peers_to_string peers)
 
     | Ip4_unicast (seqno, prefix, ribs) ->
@@ -106,20 +106,20 @@ let to_string (_,p) =
 
     | Ip6_unicast (seqno, prefix, ribs) ->
         sprintf "IPV6_UNICAST(seqno:%ld, prefix:%s, ribs:[%s])"
-          seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs) 
+          seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs)
 
     | Ip6_multicast (seqno, prefix, ribs) ->
         sprintf "IPV6_MULTICAST(seqno:%ld, prefix:%s, ribs:[%s])"
-          seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs) 
+          seqno (Afi.prefix_to_string prefix) (ribs_to_string ribs)
   in
   sprintf "TABLE2()|%s" (payload_to_string p)
 
 let parse subtype buf =
-  let parse_ribs hlen buf = 
+  let parse_ribs hlen buf =
     let buf = Cstruct.shift buf hlen in
     Cstruct.iter
       (fun buf -> Some (sizeof_rib + (get_rib_alen buf)))
-      (fun buf -> 
+      (fun buf ->
         let peer_index = get_rib_peer buf in
         let otime = get_rib_otime buf in
         let attrs = Bgp.parse_path_attrs ~caller:Bgp.Table2
@@ -140,14 +140,14 @@ let parse subtype buf =
         let buf = Cstruct.shift buf 2 in
         let parse_peer_entries = Cstruct.(
           iter
-            (fun buf -> 
-              let pt = get_peer_typ buf in 
+            (fun buf ->
+              let pt = get_peer_typ buf in
               let plen = (if is_bit 0 (* 7 *) pt then 16 else 4)
                 + (if is_bit 1 (* 6 *) pt then 4 else 2)
               in
               Some (sizeof_peer + plen)
             )
-            (fun buf -> 
+            (fun buf ->
               let hlen = sizeof_peer in
               let h,p = Cstruct.split buf hlen in
               let pt = get_peer_typ h in
@@ -158,7 +158,7 @@ let parse subtype buf =
               ) in
               let p = Cstruct.shift p sz in
               let asn = Bgp.(match is_bit 1 (* 6 *) pt with
-                | false -> Asn (Cstruct.BE.get_uint16 p 0) 
+                | false -> Asn (Cstruct.BE.get_uint16 p 0)
                 | true -> Asn4 (Cstruct.BE.get_uint32 p 0)
               ) in
               { id; ip; asn }
@@ -185,7 +185,7 @@ let parse subtype buf =
         let (ip,pl) = Bgp.get_nlri6 buf sizeof_rib_h in
         let hlen = sizeof_rib_h + 1 + (Bgp.pfxlen_to_bytes pl) + 2 in
         Ip6_unicast (seqno, (ip,pl), parse_ribs hlen buf)
-          
+
     | Some RIB_IPV6_MULTICAST ->
         let seqno = get_rib_h_seqno buf in
         let (ip,pl) = Bgp.get_nlri6 buf sizeof_rib_h in

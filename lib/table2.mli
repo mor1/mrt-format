@@ -16,4 +16,4 @@
 
 type t
 val to_string: t -> string
-val parse: int -> Cstruct.buf -> t Cstruct.iter 
+val parse: int -> Cstruct.buf -> t Cstruct.iter
