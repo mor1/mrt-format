@@ -1,0 +1,125 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Tlv.html">
+<link rel="next" href="Mrt.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Operators" rel="Chapter" href="Operators.html">
+<link title="Afi" rel="Chapter" href="Afi.html">
+<link title="Safi" rel="Chapter" href="Safi.html">
+<link title="Tlv" rel="Chapter" href="Tlv.html">
+<link title="Bgp" rel="Chapter" href="Bgp.html">
+<link title="Mrt" rel="Chapter" href="Mrt.html">
+<link title="Table" rel="Chapter" href="Table.html">
+<link title="Bgp4mp" rel="Chapter" href="Bgp4mp.html">
+<link title="Table2" rel="Chapter" href="Table2.html"><title>Bgp</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Tlv.html" title="Tlv">Previous</a>
+&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Mrt.html" title="Mrt">Next</a>
+</div>
+<h1>Module <a href="type_Bgp.html">Bgp</a></h1>
+
+<pre><span class="keyword">module</span> Bgp: <code class="code"><span class="keyword">sig</span></code> <a href="Bgp.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><hr width="100%">
+
+<pre><code><span id="TYPEasn"><span class="keyword">type</span> <code class="type"></code>asn</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTasn.Asn"><span class="constructor">Asn</span></span> <span class="keyword">of</span> <code class="type">int</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTasn.Asn4"><span class="constructor">Asn4</span></span> <span class="keyword">of</span> <code class="type">int32</code></code></td>
+
+</tr></table>
+
+
+
+<pre><span id="VALasn_to_string"><span class="keyword">val</span> asn_to_string</span> : <code class="type"><a href="Bgp.html#TYPEasn">asn</a> -> string</code></pre>
+<pre><span id="VALpfxlen_to_bytes"><span class="keyword">val</span> pfxlen_to_bytes</span> : <code class="type">int -> int</code></pre>
+<pre><span id="VALget_nlri4"><span class="keyword">val</span> get_nlri4</span> : <code class="type">Cstruct.t -> int -> <a href="Afi.html#TYPEprefix">Afi.prefix</a></code></pre>
+<pre><span id="VALget_nlri6"><span class="keyword">val</span> get_nlri6</span> : <code class="type">Cstruct.t -> int -> <a href="Afi.html#TYPEprefix">Afi.prefix</a></code></pre>
+<pre><code><span id="TYPEcaller"><span class="keyword">type</span> <code class="type"></code>caller</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTcaller.Normal"><span class="constructor">Normal</span></span></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTcaller.Table2"><span class="constructor">Table2</span></span></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTcaller.Bgp4mp_as4"><span class="constructor">Bgp4mp_as4</span></span></code></td>
+
+</tr></table>
+
+
+
+<pre><span id="TYPEpath_attrs"><span class="keyword">type</span> <code class="type"></code>path_attrs</span> </pre>
+
+
+<pre><span id="VALpath_attrs_to_string"><span class="keyword">val</span> path_attrs_to_string</span> : <code class="type"><a href="Bgp.html#TYPEpath_attrs">path_attrs</a> -> string</code></pre>
+<pre><span id="VALparse_path_attrs"><span class="keyword">val</span> parse_path_attrs</span> : <code class="type">?caller:<a href="Bgp.html#TYPEcaller">caller</a> -> Cstruct.t -> <a href="Bgp.html#TYPEpath_attrs">path_attrs</a></code></pre>
+<pre><span id="TYPEopent"><span class="keyword">type</span> <code class="type"></code>opent</span> </pre>
+
+
+<pre><span id="VALopent_to_string"><span class="keyword">val</span> opent_to_string</span> : <code class="type"><a href="Bgp.html#TYPEopent">opent</a> -> string</code></pre>
+<pre><span id="TYPEupdate"><span class="keyword">type</span> <code class="type"></code>update</span> </pre>
+
+
+<pre><span id="VALupdate_to_string"><span class="keyword">val</span> update_to_string</span> : <code class="type"><a href="Bgp.html#TYPEupdate">update</a> -> string</code></pre>
+<pre><code><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = </code></pre><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Open"><span class="constructor">Open</span></span> <span class="keyword">of</span> <code class="type"><a href="Bgp.html#TYPEopent">opent</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Update"><span class="constructor">Update</span></span> <span class="keyword">of</span> <code class="type"><a href="Bgp.html#TYPEupdate">update</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Notification"><span class="constructor">Notification</span></span></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span id="TYPEELTt.Keepalive"><span class="constructor">Keepalive</span></span></code></td>
+
+</tr></table>
+
+
+
+<pre><span id="VALto_string"><span class="keyword">val</span> to_string</span> : <code class="type"><a href="Bgp.html#TYPEt">t</a> -> string</code></pre>
+<pre><span id="VALparse"><span class="keyword">val</span> parse</span> : <code class="type">?caller:<a href="Bgp.html#TYPEcaller">caller</a> -> Cstruct.t -> <a href="Bgp.html#TYPEt">t</a> Cstruct.iter</code></pre></body></html>

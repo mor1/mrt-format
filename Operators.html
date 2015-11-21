@@ -1,0 +1,81 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Afi.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Operators" rel="Chapter" href="Operators.html">
+<link title="Afi" rel="Chapter" href="Afi.html">
+<link title="Safi" rel="Chapter" href="Safi.html">
+<link title="Tlv" rel="Chapter" href="Tlv.html">
+<link title="Bgp" rel="Chapter" href="Bgp.html">
+<link title="Mrt" rel="Chapter" href="Mrt.html">
+<link title="Table" rel="Chapter" href="Table.html">
+<link title="Bgp4mp" rel="Chapter" href="Bgp4mp.html">
+<link title="Table2" rel="Chapter" href="Table2.html"><title>Operators</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;<a class="post" href="Afi.html" title="Afi">Next</a>
+</div>
+<h1>Module <a href="type_Operators.html">Operators</a></h1>
+
+<pre><span class="keyword">module</span> Operators: <code class="code"><span class="keyword">sig</span></code> <a href="Operators.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info module top">
+Some widely used operators.<br>
+<b>Author(s):</b> Richard Mortier &lt;mort@cantab.net&gt;, Anil Madhavapeddy &lt;anil@recoil.org&gt;<br>
+</div>
+<hr width="100%">
+
+<pre><span id="VAL(|>)"><span class="keyword">val</span> (|&gt;)</span> : <code class="type">'a -> ('a -> 'b) -> 'b</code></pre><div class="info ">
+Pipe.<br>
+</div>
+
+<pre><span id="VAL(>>)"><span class="keyword">val</span> (&gt;&gt;)</span> : <code class="type">('a -> 'b) -> ('b -> 'c) -> 'a -> 'c</code></pre><div class="info ">
+Functor pipe.<br>
+</div>
+
+<pre><span id="VAL(||>)"><span class="keyword">val</span> (||&gt;)</span> : <code class="type">'a list -> ('a -> 'b) -> 'b list</code></pre><div class="info ">
+Element-wise pipe.<br>
+</div>
+<br>
+32 and 64 bit arithmetic and logic operations.<br>
+
+<pre><span id="VAL(+++)"><span class="keyword">val</span> (+++)</span> : <code class="type">int32 -> int32 -> int32</code></pre><div class="info ">
+Addition.<br>
+</div>
+
+<pre><span id="VAL(++++)"><span class="keyword">val</span> (++++)</span> : <code class="type">int64 -> int64 -> int64</code></pre>
+<pre><span id="VAL(&&&)"><span class="keyword">val</span> (&amp;&amp;&amp;)</span> : <code class="type">int32 -> int32 -> int32</code></pre><div class="info ">
+Logical AND.<br>
+</div>
+
+<pre><span id="VAL(&&&&)"><span class="keyword">val</span> (&amp;&amp;&amp;&amp;)</span> : <code class="type">int64 -> int64 -> int64</code></pre>
+<pre><span id="VAL(|||)"><span class="keyword">val</span> (|||)</span> : <code class="type">int32 -> int32 -> int32</code></pre><div class="info ">
+Logical OR.<br>
+</div>
+
+<pre><span id="VAL(||||)"><span class="keyword">val</span> (||||)</span> : <code class="type">int64 -> int64 -> int64</code></pre>
+<pre><span id="VAL(^^^)"><span class="keyword">val</span> (^^^)</span> : <code class="type">int32 -> int32 -> int32</code></pre><div class="info ">
+Logical XOR.<br>
+</div>
+
+<pre><span id="VAL(^^^^)"><span class="keyword">val</span> (^^^^)</span> : <code class="type">int64 -> int64 -> int64</code></pre>
+<pre><span id="VAL(<<<)"><span class="keyword">val</span> (&lt;&lt;&lt;)</span> : <code class="type">int32 -> int -> int32</code></pre><div class="info ">
+Logical shift-left.<br>
+</div>
+
+<pre><span id="VAL(<<<<)"><span class="keyword">val</span> (&lt;&lt;&lt;&lt;)</span> : <code class="type">int64 -> int -> int64</code></pre>
+<pre><span id="VAL(>>>)"><span class="keyword">val</span> (&gt;&gt;&gt;)</span> : <code class="type">int32 -> int -> int32</code></pre><div class="info ">
+Logical shift-right.<br>
+</div>
+
+<pre><span id="VAL(>>>>)"><span class="keyword">val</span> (&gt;&gt;&gt;&gt;)</span> : <code class="type">int64 -> int -> int64</code></pre>
+<pre><span id="VALis_bit"><span class="keyword">val</span> is_bit</span> : <code class="type">int -> int -> bool</code></pre><div class="info ">
+Test if bit n is set in bits.<br>
+</div>
+</body></html>
