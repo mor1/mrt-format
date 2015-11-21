@@ -5,3 +5,5 @@ _build
 setup.bin
 setup.data
 setup.log
+
+doc/html/
