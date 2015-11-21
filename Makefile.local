@@ -85,7 +85,7 @@ pr:
 
 test-opam:
 	opam switch system
-	opam switch remove test-opam -y
+	opam switch remove test-opam -y || true
 	opam switch test-opam -A system -y
 	eval $$(opam config env)
 	opam pin add mrt . -k git -y
