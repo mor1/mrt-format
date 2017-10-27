@@ -1,0 +1,11 @@
+(jbuild_version 1)
+
+(library
+ ((name mrt)
+  (public_name mrt)
+  (flags (:standard -w "A-44-48-52" -safe-string))
+  (libraries (
+      cstruct ppx_cstruct
+  ))
+  (preprocess (pps (ppx_cstruct)))
+))
