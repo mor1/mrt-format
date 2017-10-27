@@ -1,39 +1,38 @@
--include Makefile.config
+ORG = mor1
+REPO = ocaml-mrt
 
-# OASIS_START
-# DO NOT EDIT (digest: 343ec959150e53c69f8ddebf984af100)
+.PHONY: build
+build:
+	jbuilder build --dev
 
-SETUP = ocaml setup.ml
+.PHONY: clean
+clean:
+	jbuilder clean
 
-build: setup.data
-	$(SETUP) -build $(BUILDFLAGS)
+.PHONY: test
+test:
+	jbuilder runtest --dev
 
-doc: setup.data build
-	$(SETUP) -doc $(DOCFLAGS)
+.PHONY: install
+install:
+	jbuilder install
 
-test: setup.data build
-	$(SETUP) -test $(TESTFLAGS)
+.PHONY: uninstall
+uninstall:
+	jbuilder uninstall
 
-all:
-	$(SETUP) -all $(ALLFLAGS)
+.PHONY: distrib
+distrib:
+	[ -x $$(opam config var root)/plugins/opam-publish/repos/$(REPO) ] || \
+	  opam-publish repo add $(REPO) $(ORG)/$(REPO)
+	topkg tag
+	topkg distrib
 
-install: setup.data
-	$(SETUP) -install $(INSTALLFLAGS)
+.PHONY: public
+publish:
+	topkg publish
+	topkg opam pkg
+	topkg opam submit
 
-reinstall: setup.data
-	$(SETUP) -reinstall $(REINSTALLFLAGS)
-
-distclean:
-	$(SETUP) -distclean $(DISTCLEANFLAGS)
-
-setup.data:
-	$(SETUP) -configure $(CONFIGUREFLAGS)
-
-configure:
-	$(SETUP) -configure $(CONFIGUREFLAGS)
-
-.PHONY: build doc test all install reinstall distclean configure
-
-# OASIS_STOP
-
--include Makefile.local
+.PHONY: release
+release: distrib publish

@@ -1,9 +1,3 @@
 _build
-*.native
-*.docdir
-
-setup.bin
-setup.data
-setup.log
-
-doc/html/
+*.merlin
+*.install
