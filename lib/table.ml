@@ -16,31 +16,37 @@
 
 open Printf
 
-cstruct h4 {
-    uint16_t viewno;
-    uint16_t seqno;
-    uint32_t prefix;
-    uint8_t pfxlen;
-    uint8_t status;
-    uint32_t otime;
-    uint32_t peer_ip;
-    uint16_t peer_as;
-    uint16_t attrlen
-  } as big_endian
+[%%cstruct
+  type h4 = {
+    viewno: uint16_t;
+    seqno: uint16_t;
+    prefix: uint32_t;
+    pfxlen: uint8_t;
+    status: uint8_t;
+    otime: uint32_t;
+    peer_ip: uint32_t;
+    peer_as: uint16_t;
+    attrlen: uint16_t;
+  }
+  [@@big_endian]
+]
 
-cstruct h6 {
-    uint16_t viewno;
-    uint16_t seqno;
-    uint64_t prefix_hi;
-    uint64_t prefix_lo;
-    uint8_t pfxlen;
-    uint8_t status;
-    uint32_t otime;
-    uint64_t peer_ip_hi;
-    uint64_t peer_ip_lo;
-    uint16_t peer_as;
-    uint16_t attrlen
-  } as big_endian
+[%%cstruct
+  type h6 = {
+    viewno: uint16_t;
+    seqno: uint16_t;
+    prefix_hi: uint64_t;
+    prefix_lo: uint64_t;
+    pfxlen: uint8_t;
+    status: uint8_t;
+    otime: uint32_t;
+    peer_ip_hi: uint64_t;
+    peer_ip_lo: uint64_t;
+    peer_as: uint16_t;
+    attrlen: uint16_t;
+  }
+  [@@big_endian]
+]
 
 type header = {
   viewno: int;

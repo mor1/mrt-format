@@ -14,10 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-cstruct tl {
-    uint8_t t;
-    uint8_t l
-  } as big_endian
+[%%cstruct
+  type tl = {
+    t: uint8_t;
+    l: uint8_t;
+  }
+  [@@big_endian]
+]
 
 let get_tlv buf =
   let tlv,bs = Cstruct.split buf (sizeof_tl + get_tl_l buf) in

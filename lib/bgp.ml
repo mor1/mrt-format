@@ -126,34 +126,44 @@ let parse_nlris buf =
   in
   Cstruct.iter lenf pf buf
 
-cstruct h {
-    uint8_t marker[16];
-    uint16_t len;
-    uint8_t typ
-  } as big_endian
+[%%cstruct
+  type h = {
+     (* marker: uint8_t array[16]; *)
+     len: uint16_t;
+     typ: uint8_t;
+   }
+  [@@big_endian]
+]
 
-  cenum tc {
-    OPEN         = 1;
-    UPDATE       = 2;
-    NOTIFICATION = 3;
-    KEEPALIVE    = 4
-  } as uint8_t
+[%%cenum
+  type tc =
+    | OPEN [@id 1]
+    | UPDATE
+    | NOTIFICATION
+    | KEEPALIVE
+  [@@uint8_t]
+]
 
-  cenum cc {
-    MP_EXT                      = 1;
-    ROUTE_REFRESH               = 2;
-    OUTBOUND_ROUTE_FILTERING    = 3;
-    MULTIPLE_ROUTES_DESTINATION = 4;
-    EXT_HEXTHOP_ENC             = 5;
-    GRACEFUL_RESTART            = 64;
-    AS4_SUPPORT                 = 65;
-    ENHANCED_REFRESH            = 70
-  } as uint8_t
+[%%cenum
+  type cc =
+    | MP_EXT                      [@id 1]
+    | ROUTE_REFRESH
+    | OUTBOUND_ROUTE_FILTERING
+    | MULTIPLE_ROUTES_DESTINATION
+    | EXT_HEXTHOP_ENC
+    | GRACEFUL_RESTART            [@id 64]
+    | AS4_SUPPORT
+    | ENHANCED_REFRESH            [@id 70]
+  [@@uint8_t]
+]
 
-cstruct mp_ext {
-    uint16_t afi;
-    uint16_t safi
-  } as big_endian
+[%%cstruct
+  type mp_ext = {
+    afi: uint16_t;
+    safi: uint16_t;
+  }
+  [@@big_endian]
+]
 
 type capability =
   | Mp_ext of Afi.tc * Safi.tc
@@ -169,11 +179,13 @@ let parse_capability buf = function
                            get_mp_ext_safi buf |> Safi.int_to_tc)
   | _ -> failwith "unrecognised capability"
 
-           cenum oc {
-           RESERVED = 0;
-           AUTHENTICATION = 1;
-           CAPABILITY = 2
-         } as uint8_t
+[%%cenum
+  type oc =
+    | RESERVED [@id 0]
+    | AUTHENTICATION
+    | CAPABILITY
+  [@@uint8_t]
+]
 
 type opt_param =
   | Reserved (* wtf? *)
@@ -185,13 +197,16 @@ let opt_param_to_string = function
   | Authentication -> "AUTH"
   | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
 
-cstruct opent {
-    uint8_t version;
-    uint16_t my_as;
-    uint16_t hold_time;
-    uint32_t bgp_id;
-    uint8_t opt_len
-  } as big_endian
+[%%cstruct
+  type opent = {
+    version: uint8_t;
+    my_as: uint16_t;
+    hold_time: uint16_t;
+    bgp_id: uint32_t;
+    opt_len: uint8_t;
+  }
+  [@@big_endian]
+]
 
 type opent = {
   version: int;
@@ -206,49 +221,68 @@ let opent_to_string o =
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id
     (o.options ||> opt_param_to_string |> String.concat "; ")
 
-    cenum attr {
-    ORIGIN = 1;
-    AS_PATH = 2;
-    NEXT_HOP = 3;
-    MED = 4;
-    LOCAL_PREF = 5;
-    ATOMIC_AGGR = 6;
-    AGGREGATOR = 7;
-    COMMUNITY = 8;
-    MP_REACH_NLRI = 14;
-    MP_UNREACH_NLRI = 15;
-    EXT_COMMUNITIES = 16;
-    AS4_PATH = 17
-  } as uint8_t
+[%%cenum
+  type attr =
+    | ORIGIN [@id 1]
+    | AS_PATH
+    | NEXT_HOP
+    | MED
+    | LOCAL_PREF
+    | ATOMIC_AGGR
+    | AGGREGATOR
+    | COMMUNITY
+    | MP_REACH_NLRI [@id 14]
+    | MP_UNREACH_NLRI
+    | EXT_COMMUNITIES
+    | AS4_PATH
+  [@@uint8_t]
+]
 
-  cenum origin { IGP; EGP; INCOMPLETE } as uint8_t
+[%%cenum
+  type origin =
+    | IGP
+    | EGP
+    | INCOMPLETE
+  [@@uint8_t]
+]
 
-cstruct ft {
-    uint8_t flags;
-    uint8_t tc;
-    uint8_t len
-  } as big_endian
+[%%cstruct
+  type ft = {
+    flags: uint8_t;
+    tc: uint8_t;
+    len: uint8_t;
+  }
+  [@@big_endian]
+]
 
-cstruct fte {
-    uint8_t flags;
-    uint8_t tc;
-    uint16_t len
-  } as big_endian
+[%%cstruct
+  type fte = {
+    flags: uint8_t;
+    tc: uint8_t;
+    len: uint16_t
+  }
+  [@@big_endian]
+]
 
 let is_optional f = is_bit 7 f
 let is_transitive f = is_bit 6 f
 let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
 
-    cenum aspt {
-    AS_SET = 1;
-    AS_SEQ = 2
-  } as uint8_t
+[%%cenum
+  type aspt =
+    | AS_SET [@id 1]
+    | AS_SEQ
+  [@@uint8_t]
+]
 
-cstruct asp {
-    uint8_t t;
-    uint8_t n
-  } as big_endian
+[%%cstruct
+  type asp = {
+    t: uint8_t;
+    n: uint8_t;
+  }
+  [@@big_endian]
+]
 
 type asp = Set of int32 Cstruct.iter | Seq of int32 Cstruct.iter
 let parse_as4path buf =

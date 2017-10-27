@@ -17,54 +17,73 @@
 open Printf
 open Operators
 
-    cenum tc {
-    STATE       = 0;
-    MESSAGE     = 1;
-    MESSAGE_AS4 = 4;
-    STATE_AS4   = 5;
-    LOCAL       = 6;
-    LOCAL_AS4   = 7
-  } as uint8_t
+[%%cenum
+  type tc =
+    | STATE [@id 0]
+    | MESSAGE
+    | MESSAGE_AS4 [@id 4]
+    | STATE_AS4
+    | LOCAL
+    | LOCAL_AS4
+  [@@uint8_t]
+]
 
-cstruct h {
-    uint16_t peer_as;
-    uint16_t local_as;
-    uint16_t ifc;
-    uint16_t afi
-  } as big_endian
+[%%cstruct
+  type h = {
+    peer_as: uint16_t;
+    local_as: uint16_t;
+    ifc: uint16_t;
+    afi: uint16_t
+  }
+  [@@big_endian]
+]
 
-cstruct h_as4 {
-    uint32_t peer_as;
-    uint32_t local_as;
-    uint16_t ifc;
-    uint16_t afi
-  } as big_endian
+[%%cstruct
+  type h_as4 = {
+    peer_as: uint32_t;
+    local_as: uint32_t;
+    ifc: uint16_t;
+    afi: uint16_t
+  }
+  [@@big_endian]
+]
 
-cstruct h4 {
-    uint32_t peer_ip;
-    uint32_t local_ip
-  } as big_endian
+[%%cstruct
+  type h4 = {
+    peer_ip: uint32_t;
+    local_ip: uint32_t;
+  }
+  [@@big_endian]
+]
 
-cstruct h6 {
-    uint64_t peer_ip_hi;
-    uint64_t peer_ip_lo;
-    uint64_t local_ip_hi;
-    uint64_t local_ip_lo
-  } as big_endian
+[%%cstruct
+  type h6 = {
+    peer_ip_hi: uint64_t;
+    peer_ip_lo: uint64_t;
+    local_ip_hi: uint64_t;
+    local_ip_lo: uint64_t;
+  }
+  [@@big_endian]
+]
 
-cstruct state_change {
-    uint16_t oldstate;
-    uint16_t newstate
-  } as big_endian
+[%%cstruct
+  type state_change = {
+    oldstate: uint16_t;
+    newstate: uint16_t;
+  }
+  [@@big_endian]
+]
 
-  cenum state {
-    Idle        = 1;
-    Connect     = 2;
-    Active      = 3;
-    OpenSent    = 4;
-    OpenConfirm = 5;
-    Established = 6
-  } as uint8_t
+[%%cenum
+  type state =
+    | Idle [@id 1]
+    | Connect
+    | Active
+    | OpenSent
+    | OpenConfirm
+    | Established
+  [@@uint8_t]
+]
 
 type header = {
   peer_as: Bgp.asn;

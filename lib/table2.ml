@@ -17,18 +17,23 @@
 open Printf
 open Operators
 
-    cenum tc {
-    PEER_INDEX_TABLE   = 1;
-    RIB_IPV4_UNICAST   = 2;
-    RIB_IPV4_MULTICAST = 3;
-    RIB_IPV6_UNICAST   = 4;
-    RIB_IPV6_MULTICAST = 5
+[%%cenum
+  type tc =
+    | PEER_INDEX_TABLE [@id 1]
+    | RIB_IPV4_UNICAST
+    | RIB_IPV4_MULTICAST
+    | RIB_IPV6_UNICAST
+    | RIB_IPV6_MULTICAST
     (* RIB_GENERIC        = 6 *)
-  } as uint8_t
+  [@@uint8_t]
+]
 
-cstruct index_table {
-    uint32_t bgpid
-  } as big_endian
+[%%cstruct
+  type index_table = {
+    bgpid: uint32_t ;
+  }
+  [@@big_endian]
+]
 
 let get_string16 buf =
   let name_len = Cstruct.BE.get_uint16 buf 0 in
@@ -36,10 +41,13 @@ let get_string16 buf =
   let rest = Cstruct.shift buf (2+name_len) in
   name, rest
 
-cstruct peer {
-    uint8_t typ;
-    uint32_t bgpid
-  } as big_endian
+[%%cstruct
+  type peer = {
+    typ: uint8_t;
+    bgpid: uint32_t;
+  }
+  [@@big_endian]
+]
 
 type peer = {
   id: int32;
@@ -55,15 +63,21 @@ let rec peers_to_string ps = match ps () with
   | None -> ""
   | Some p -> (peer_to_string p) ^ "; " ^ (peers_to_string ps)
 
-cstruct rib_h {
-    uint32_t seqno
-  } as big_endian
+[%%cstruct
+  type rib_h = {
+    seqno: uint32_t
+  }
+  [@@big_endian]
+]
 
-cstruct rib {
-    uint16_t peer;
-    uint32_t otime;
-    uint16_t alen
-  } as big_endian
+[%%cstruct
+  type rib = {
+    peer: uint16_t;
+    otime: uint32_t;
+    alen: uint16_t;
+  }
+  [@@big_endian]
+]
 
 type rib = {
   peer_index: int; (* 16 bit, index into peer_table *)

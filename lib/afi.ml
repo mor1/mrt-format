@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-open Operators
 open Printf
+open Operators
 
 type tc = IP4 | IP6
 let tc_to_int = function
@@ -36,10 +36,13 @@ and tc_to_string = function
   [@@big_endian]
 ]
 
-cstruct ip6 {
-    uint64_t hi;
-    uint64_t lo
-  } as big_endian
+[%%cstruct
+  type ip6 = {
+    hi: uint64_t;
+    lo: uint64_t;
+  }
+  [@@big_endian]
+]
 
 type ip4 = int32
 let ip4_to_string ip =
