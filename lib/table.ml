@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2012-2015 Richard Mortier <mort@cantab.net>
+ * Copyright (c) 2012-2017 Richard Mortier <mort@cantab.net>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,30 +17,30 @@
 open Printf
 
 cstruct h4 {
-  uint16_t viewno;
-  uint16_t seqno;
-  uint32_t prefix;
-  uint8_t pfxlen;
-  uint8_t status;
-  uint32_t otime;
-  uint32_t peer_ip;
-  uint16_t peer_as;
-  uint16_t attrlen
-} as big_endian
+    uint16_t viewno;
+    uint16_t seqno;
+    uint32_t prefix;
+    uint8_t pfxlen;
+    uint8_t status;
+    uint32_t otime;
+    uint32_t peer_ip;
+    uint16_t peer_as;
+    uint16_t attrlen
+  } as big_endian
 
 cstruct h6 {
-  uint16_t viewno;
-  uint16_t seqno;
-  uint64_t prefix_hi;
-  uint64_t prefix_lo;
-  uint8_t pfxlen;
-  uint8_t status;
-  uint32_t otime;
-  uint64_t peer_ip_hi;
-  uint64_t peer_ip_lo;
-  uint16_t peer_as;
-  uint16_t attrlen
-} as big_endian
+    uint16_t viewno;
+    uint16_t seqno;
+    uint64_t prefix_hi;
+    uint64_t prefix_lo;
+    uint8_t pfxlen;
+    uint8_t status;
+    uint32_t otime;
+    uint64_t peer_ip_hi;
+    uint64_t peer_ip_lo;
+    uint16_t peer_as;
+    uint16_t attrlen
+  } as big_endian
 
 type header = {
   viewno: int;
@@ -73,31 +73,31 @@ let parse subtype buf =
   let lenf buf = Some (Cstruct.len buf) in
   let pf buf =
     let hlen = Afi.(match int_to_tc subtype with
-      | IP4 -> sizeof_h4
-      | IP6 -> sizeof_h6
-    )
+        | IP4 -> sizeof_h4
+        | IP6 -> sizeof_h6
+      )
     in
     let h,_ = Cstruct.split buf hlen in
     let header = Afi.(match int_to_tc subtype with
-      | IP4 -> { viewno=get_h4_viewno h;
-                 seqno=get_h4_seqno h;
-                 prefix=IPv4 (get_h4_prefix h);
-                 pfxlen=get_h4_pfxlen h;
-                 status=get_h4_status h;
-                 otime=get_h4_otime h;
-                 peer_ip=IPv4 (get_h4_peer_ip h);
-                 peer_as=Bgp.Asn (get_h4_peer_as h);
-               }
-      | IP6 -> { viewno=get_h6_viewno h;
-                 seqno=get_h6_seqno h;
-                 prefix=IPv6 ((get_h6_prefix_hi h), (get_h6_prefix_lo h));
-                 pfxlen=get_h6_pfxlen h;
-                 status=get_h6_status h;
-                 otime=get_h6_otime h;
-                 peer_ip=IPv6 ((get_h6_peer_ip_hi h), (get_h6_peer_ip_lo h));
-                 peer_as=Bgp.Asn (get_h6_peer_as h);
-               }
-    )
+        | IP4 -> { viewno=get_h4_viewno h;
+                   seqno=get_h4_seqno h;
+                   prefix=IPv4 (get_h4_prefix h);
+                   pfxlen=get_h4_pfxlen h;
+                   status=get_h4_status h;
+                   otime=get_h4_otime h;
+                   peer_ip=IPv4 (get_h4_peer_ip h);
+                   peer_as=Bgp.Asn (get_h4_peer_as h);
+                 }
+        | IP6 -> { viewno=get_h6_viewno h;
+                   seqno=get_h6_seqno h;
+                   prefix=IPv6 ((get_h6_prefix_hi h), (get_h6_prefix_lo h));
+                   pfxlen=get_h6_pfxlen h;
+                   status=get_h6_status h;
+                   otime=get_h6_otime h;
+                   peer_ip=IPv6 ((get_h6_peer_ip_hi h), (get_h6_peer_ip_lo h));
+                   peer_as=Bgp.Asn (get_h6_peer_as h);
+                 }
+      )
     in
     (header, Not_implemented)
   in

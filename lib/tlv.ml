@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2012-2015 Richard Mortier <mort@cantab.net>
+ * Copyright (c) 2012-2017 Richard Mortier <mort@cantab.net>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,9 +15,9 @@
  *)
 
 cstruct tl {
-  uint8_t t;
-  uint8_t l
-} as big_endian
+    uint8_t t;
+    uint8_t l
+  } as big_endian
 
 let get_tlv buf =
   let tlv,bs = Cstruct.split buf (sizeof_tl + get_tl_l buf) in

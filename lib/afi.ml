@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2012-2015 Richard Mortier <mort@cantab.net>
+ * Copyright (c) 2012-2017 Richard Mortier <mort@cantab.net>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -29,14 +29,17 @@ and tc_to_string = function
   | IP4 -> "IPv4"
   | IP6 -> "IPv6"
 
-cstruct ip4 {
-  uint32_t ip
-} as big_endian
+[%%cstruct
+  type ip4 = {
+    ip: uint32_t;
+  }
+  [@@big_endian]
+]
 
 cstruct ip6 {
-  uint64_t hi;
-  uint64_t lo
-} as big_endian
+    uint64_t hi;
+    uint64_t lo
+  } as big_endian
 
 type ip4 = int32
 let ip4_to_string ip =

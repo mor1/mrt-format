@@ -1,13 +1,10 @@
-ocaml-mrt
-=========
+# `ocaml-mrt` -- MRT parsing library and CLI
 
-Basics of an [MRT](http://tools.ietf.org/html/rfc6396) routing data dump
-parser.
+%%VERSION%%
 
-Largely an excuse to play with
-[ocaml-cstruct](http://github.com/avsm/ocaml-cstruct).
-
-Contact <mailto:mort@cantab.net> for more information.
-
-## WIP. Don't rely on this yet!
-
+A basic implementation of the [Multi-Threaded Routing
+Toolkit](https://tools.ietf.org/html/rfc6396) format, following my
+implementation in the [Python Routing Toolkit](https://github.com/mor1/pyrt) and
+documentation in the [RFC](https://tools.ietf.org/html/rfc6396) and the [PyRT
+README](https://github.com/mor1/pyrt/blob/master/README.mrtd). Provides
+(incomplete) parsing libraries and a simple CLI tool.

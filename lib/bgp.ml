@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2012-2015 Richard Mortier <mort@cantab.net>
+ * Copyright (c) 2012-2017 Richard Mortier <mort@cantab.net>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -35,9 +35,9 @@ type asn = Asn of int | Asn4 of int32
 let asn_to_string = function
   | Asn a -> sprintf "%d" a
   | Asn4 a ->
-      if a < 65536_l then sprintf "%ld" a
-      else
-        sprintf "%ld.%ld" (a >>> 16) (a &&& 0xFFFF_l)
+    if a < 65536_l then sprintf "%ld" a
+    else
+      sprintf "%ld.%ld" (a >>> 16) (a &&& 0xFFFF_l)
 
 let pfxlen_to_bytes l = (l+7) / 8
 
@@ -127,33 +127,33 @@ let parse_nlris buf =
   Cstruct.iter lenf pf buf
 
 cstruct h {
-  uint8_t marker[16];
-  uint16_t len;
-  uint8_t typ
-} as big_endian
+    uint8_t marker[16];
+    uint16_t len;
+    uint8_t typ
+  } as big_endian
 
-cenum tc {
-  OPEN         = 1;
-  UPDATE       = 2;
-  NOTIFICATION = 3;
-  KEEPALIVE    = 4
-} as uint8_t
+  cenum tc {
+    OPEN         = 1;
+    UPDATE       = 2;
+    NOTIFICATION = 3;
+    KEEPALIVE    = 4
+  } as uint8_t
 
-cenum cc {
-  MP_EXT                      = 1;
-  ROUTE_REFRESH               = 2;
-  OUTBOUND_ROUTE_FILTERING    = 3;
-  MULTIPLE_ROUTES_DESTINATION = 4;
-  EXT_HEXTHOP_ENC             = 5;
-  GRACEFUL_RESTART            = 64;
-  AS4_SUPPORT                 = 65;
-  ENHANCED_REFRESH            = 70
-} as uint8_t
+  cenum cc {
+    MP_EXT                      = 1;
+    ROUTE_REFRESH               = 2;
+    OUTBOUND_ROUTE_FILTERING    = 3;
+    MULTIPLE_ROUTES_DESTINATION = 4;
+    EXT_HEXTHOP_ENC             = 5;
+    GRACEFUL_RESTART            = 64;
+    AS4_SUPPORT                 = 65;
+    ENHANCED_REFRESH            = 70
+  } as uint8_t
 
 cstruct mp_ext {
-  uint16_t afi;
-  uint16_t safi
-} as big_endian
+    uint16_t afi;
+    uint16_t safi
+  } as big_endian
 
 type capability =
   | Mp_ext of Afi.tc * Safi.tc
@@ -161,7 +161,7 @@ type capability =
 
 let capability_to_string = function
   | Mp_ext (a,s) ->
-      sprintf "MP_EXT(%s,%s)" (Afi.tc_to_string a) (Safi.tc_to_string s)
+    sprintf "MP_EXT(%s,%s)" (Afi.tc_to_string a) (Safi.tc_to_string s)
   | Ecapability _ -> "UNKNOWN_CAPABILITY"
 
 let parse_capability buf = function
@@ -169,11 +169,11 @@ let parse_capability buf = function
                            get_mp_ext_safi buf |> Safi.int_to_tc)
   | _ -> failwith "unrecognised capability"
 
-cenum oc {
-  RESERVED = 0;
-  AUTHENTICATION = 1;
-  CAPABILITY = 2
-} as uint8_t
+           cenum oc {
+           RESERVED = 0;
+           AUTHENTICATION = 1;
+           CAPABILITY = 2
+         } as uint8_t
 
 type opt_param =
   | Reserved (* wtf? *)
@@ -186,12 +186,12 @@ let opt_param_to_string = function
   | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
 
 cstruct opent {
-  uint8_t version;
-  uint16_t my_as;
-  uint16_t hold_time;
-  uint32_t bgp_id;
-  uint8_t opt_len
-} as big_endian
+    uint8_t version;
+    uint16_t my_as;
+    uint16_t hold_time;
+    uint32_t bgp_id;
+    uint8_t opt_len
+  } as big_endian
 
 type opent = {
   version: int;
@@ -206,49 +206,49 @@ let opent_to_string o =
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id
     (o.options ||> opt_param_to_string |> String.concat "; ")
 
-cenum attr {
-  ORIGIN = 1;
-  AS_PATH = 2;
-  NEXT_HOP = 3;
-  MED = 4;
-  LOCAL_PREF = 5;
-  ATOMIC_AGGR = 6;
-  AGGREGATOR = 7;
-  COMMUNITY = 8;
-  MP_REACH_NLRI = 14;
-  MP_UNREACH_NLRI = 15;
-  EXT_COMMUNITIES = 16;
-  AS4_PATH = 17
-} as uint8_t
+    cenum attr {
+    ORIGIN = 1;
+    AS_PATH = 2;
+    NEXT_HOP = 3;
+    MED = 4;
+    LOCAL_PREF = 5;
+    ATOMIC_AGGR = 6;
+    AGGREGATOR = 7;
+    COMMUNITY = 8;
+    MP_REACH_NLRI = 14;
+    MP_UNREACH_NLRI = 15;
+    EXT_COMMUNITIES = 16;
+    AS4_PATH = 17
+  } as uint8_t
 
-cenum origin { IGP; EGP; INCOMPLETE } as uint8_t
+  cenum origin { IGP; EGP; INCOMPLETE } as uint8_t
 
 cstruct ft {
-  uint8_t flags;
-  uint8_t tc;
-  uint8_t len
-} as big_endian
+    uint8_t flags;
+    uint8_t tc;
+    uint8_t len
+  } as big_endian
 
 cstruct fte {
-  uint8_t flags;
-  uint8_t tc;
-  uint16_t len
-} as big_endian
+    uint8_t flags;
+    uint8_t tc;
+    uint16_t len
+  } as big_endian
 
 let is_optional f = is_bit 7 f
 let is_transitive f = is_bit 6 f
 let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
 
-cenum aspt {
-  AS_SET = 1;
-  AS_SEQ = 2
-} as uint8_t
+    cenum aspt {
+    AS_SET = 1;
+    AS_SEQ = 2
+  } as uint8_t
 
 cstruct asp {
-  uint8_t t;
-  uint8_t n
-} as big_endian
+    uint8_t t;
+    uint8_t n
+  } as big_endian
 
 type asp = Set of int32 Cstruct.iter | Seq of int32 Cstruct.iter
 let parse_as4path buf =
@@ -257,14 +257,14 @@ let parse_as4path buf =
     let t = get_asp_t buf in
     let buf = Cstruct.shift buf sizeof_asp in
     let vs = Cstruct.iter
-      (fun buf -> Some 4)
-      (fun buf -> Cstruct.BE.get_uint32 buf 0)
-      buf
+        (fun buf -> Some 4)
+        (fun buf -> Cstruct.BE.get_uint32 buf 0)
+        buf
     in
     match int_to_aspt t with
-      | None -> failwith "parse_as4path: unknown segment type"
-      | Some AS_SET -> Set vs
-      | Some AS_SEQ -> Seq vs
+    | None -> failwith "parse_as4path: unknown segment type"
+    | Some AS_SET -> Set vs
+    | Some AS_SEQ -> Seq vs
   in
   Cstruct.iter lenf pf buf
 
@@ -273,9 +273,9 @@ let aspath_to_string a =
     | None -> ""
     | Some v -> sprintf "%ld <- %s" v (asps_to_string a)
   in match a () with
-    | None -> ""
-    | Some Set v -> sprintf "set(%s)" (asps_to_string v)
-    | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
+  | None -> ""
+  | Some Set v -> sprintf "set(%s)" (asps_to_string v)
+  | Some Seq v -> sprintf "seq(%s)" (asps_to_string v)
 
 let parse_aspath buf =
   let lenf buf = Some (sizeof_asp + get_asp_n buf * 2) in
@@ -283,14 +283,14 @@ let parse_aspath buf =
     let t = get_asp_t buf in
     let buf = Cstruct.shift buf sizeof_asp in
     let vs = Cstruct.iter
-      (fun buf -> Some 2)
-      (fun buf -> Cstruct.BE.get_uint16 buf 0 |> Int32.of_int)
-      buf
+        (fun buf -> Some 2)
+        (fun buf -> Cstruct.BE.get_uint16 buf 0 |> Int32.of_int)
+        buf
     in
     match int_to_aspt t with
-      | None -> failwith "parse_aspath: unknown segment type"
-      | Some AS_SET -> Set vs
-      | Some AS_SEQ -> Seq vs
+    | None -> failwith "parse_aspath: unknown segment type"
+    | Some AS_SET -> Set vs
+    | Some AS_SEQ -> Seq vs
   in
   Cstruct.iter lenf pf buf
 
@@ -313,7 +313,7 @@ let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
     Some Cstruct.(if is_extlen f then sizeof_fte + get_fte_len buf
-      else sizeof_ft + get_ft_len buf)
+                  else sizeof_ft + get_ft_len buf)
   in
   let pf buf =
     let hlen =
@@ -321,24 +321,24 @@ let parse_path_attrs ?(caller=Normal) buf =
     in
     let h,p = Cstruct.split buf hlen in
     match h |> get_ft_tc |> int_to_attr with
-      | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
-      | Some AS_PATH -> (match caller with
-          | Normal -> As_path (parse_aspath p)
-          | Table2 | Bgp4mp_as4 -> As4_path (parse_as4path p)
+    | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
+    | Some AS_PATH -> (match caller with
+        | Normal -> As_path (parse_aspath p)
+        | Table2 | Bgp4mp_as4 -> As4_path (parse_as4path p)
       )
-      | Some AS4_PATH -> As4_path (parse_as4path p)
-      | Some NEXT_HOP -> Next_hop (Cstruct.BE.get_uint32 p 0)
-      | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
-      | Some EXT_COMMUNITIES -> Ext_communities
-      | Some MED -> Med (Cstruct.BE.get_uint32 p 0)
-      | Some ATOMIC_AGGR -> Atomic_aggr
-      | Some AGGREGATOR -> Aggregator
-      | Some MP_REACH_NLRI -> Mp_reach_nlri
-      | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
+    | Some AS4_PATH -> As4_path (parse_as4path p)
+    | Some NEXT_HOP -> Next_hop (Cstruct.BE.get_uint32 p 0)
+    | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
+    | Some EXT_COMMUNITIES -> Ext_communities
+    | Some MED -> Med (Cstruct.BE.get_uint32 p 0)
+    | Some ATOMIC_AGGR -> Atomic_aggr
+    | Some AGGREGATOR -> Aggregator
+    | Some MP_REACH_NLRI -> Mp_reach_nlri
+    | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
 
-      | _ ->
-          printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
-          Cstruct.hexdump p; failwith "unknown path attr"
+    | _ ->
+      printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
+      Cstruct.hexdump p; failwith "unknown path attr"
   in
   Cstruct.iter lenf pf buf
 
@@ -351,21 +351,21 @@ type update = {
 let rec path_attrs_to_string iter = match iter () with
   | None -> ""
   | Some Origin v ->
-      sprintf "ORIGIN(%s); %s"
-        (match v with None -> "error" | Some v -> origin_to_string v)
-        (path_attrs_to_string iter)
+    sprintf "ORIGIN(%s); %s"
+      (match v with None -> "error" | Some v -> origin_to_string v)
+      (path_attrs_to_string iter)
   | Some As_path v ->
-      sprintf "AS_PATH(%s); %s"
-        (aspath_to_string v) (path_attrs_to_string iter)
+    sprintf "AS_PATH(%s); %s"
+      (aspath_to_string v) (path_attrs_to_string iter)
   | Some As4_path v ->
-      sprintf "AS4_PATH(%s); %s"
-        (aspath_to_string v) (path_attrs_to_string iter)
+    sprintf "AS4_PATH(%s); %s"
+      (aspath_to_string v) (path_attrs_to_string iter)
   | Some Next_hop v ->
-      sprintf "NEXT_HOP(%s); %s"
-        (Afi.ip4_to_string v) (path_attrs_to_string iter)
+    sprintf "NEXT_HOP(%s); %s"
+      (Afi.ip4_to_string v) (path_attrs_to_string iter)
   | Some Community v ->
-      sprintf "COMMUNITY(%ld:%ld); %s"
-        (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) (path_attrs_to_string iter)
+    sprintf "COMMUNITY(%ld:%ld); %s"
+      (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) (path_attrs_to_string iter)
   | Some Ext_communities -> "EXT_COMMUNITIES; " ^ (path_attrs_to_string iter)
   | Some Med v -> sprintf "MED(%ld); %s" v (path_attrs_to_string iter)
   | Some Atomic_aggr -> "ATOMIC_AGGR; " ^ (path_attrs_to_string iter)
@@ -401,47 +401,47 @@ let parse ?(caller=Normal) buf =
     let hlen = sizeof_h in
     let h,p = Cstruct.split buf hlen in
     match get_h_typ h |> int_to_tc with
-      | None -> failwith "pf: bad BGP packet"
-      | Some OPEN ->
-          let m,opts = Cstruct.split p (get_opent_opt_len p) in
-          let opts =
-            let rec aux acc bs =
-              if Cstruct.len bs = 0 then acc else (
-                let t,opt, bs = Tlv.get_tlv bs in
-                let opt = match int_to_oc t with
-                  | None -> failwith "bad option"
-                  | Some RESERVED -> Reserved
-                  | Some AUTHENTICATION -> Authentication
-                  | Some CAPABILITY ->
-                      let t,c, _ = Tlv.get_tlv bs in
-                      Capability (parse_capability c (int_to_cc t))
-                in aux (opt :: acc) bs
-              )
-            in aux [] opts
-          in
-          Open { version = get_opent_version m;
-                 my_as = Asn (get_opent_my_as m);
-                 hold_time = get_opent_hold_time m;
-                 bgp_id = get_opent_bgp_id m;
-                 options = opts;
-               }
+    | None -> failwith "pf: bad BGP packet"
+    | Some OPEN ->
+      let m,opts = Cstruct.split p (get_opent_opt_len p) in
+      let opts =
+        let rec aux acc bs =
+          if Cstruct.len bs = 0 then acc else (
+            let t,opt, bs = Tlv.get_tlv bs in
+            let opt = match int_to_oc t with
+              | None -> failwith "bad option"
+              | Some RESERVED -> Reserved
+              | Some AUTHENTICATION -> Authentication
+              | Some CAPABILITY ->
+                let t,c, _ = Tlv.get_tlv bs in
+                Capability (parse_capability c (int_to_cc t))
+            in aux (opt :: acc) bs
+          )
+        in aux [] opts
+      in
+      Open { version = get_opent_version m;
+             my_as = Asn (get_opent_my_as m);
+             hold_time = get_opent_hold_time m;
+             bgp_id = get_opent_bgp_id m;
+             options = opts;
+           }
 
-      | Some UPDATE ->
-          let withdrawn,bs =
-            let wl = Cstruct.BE.get_uint16 p 0 in
-            Cstruct.split ~start:2 p wl
-          in
-          let path_attrs,nlri =
-            let pl = Cstruct.BE.get_uint16 bs 0 in
-            Cstruct.split ~start:2 bs pl
-          in
-          Update {
-            withdrawn = parse_nlris withdrawn;
-            path_attrs = parse_path_attrs ~caller path_attrs;
-            nlri = parse_nlris nlri;
-          }
+    | Some UPDATE ->
+      let withdrawn,bs =
+        let wl = Cstruct.BE.get_uint16 p 0 in
+        Cstruct.split ~start:2 p wl
+      in
+      let path_attrs,nlri =
+        let pl = Cstruct.BE.get_uint16 bs 0 in
+        Cstruct.split ~start:2 bs pl
+      in
+      Update {
+        withdrawn = parse_nlris withdrawn;
+        path_attrs = parse_path_attrs ~caller path_attrs;
+        nlri = parse_nlris nlri;
+      }
 
-      | Some NOTIFICATION -> Notification
-      | Some KEEPALIVE -> Keepalive
+    | Some NOTIFICATION -> Notification
+    | Some KEEPALIVE -> Keepalive
   in
   Cstruct.iter lenf pf buf
