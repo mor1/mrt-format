@@ -1,0 +1,9 @@
+(jbuild_version 1)
+
+(executables
+ ((names        (omrt updates))
+  (public_names (omrt updates))
+  (libraries (
+      mrt-format
+  ))
+))

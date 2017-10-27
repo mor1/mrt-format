@@ -177,7 +177,15 @@ let capability_to_string = function
 let parse_capability buf = function
   | Some MP_EXT -> Mp_ext (get_mp_ext_afi buf |> Afi.int_to_tc,
                            get_mp_ext_safi buf |> Safi.int_to_tc)
-  | _ -> failwith "unrecognised capability"
+  | Some ROUTE_REFRESH
+  | Some OUTBOUND_ROUTE_FILTERING
+  | Some MULTIPLE_ROUTES_DESTINATION
+  | Some EXT_HEXTHOP_ENC
+  | Some GRACEFUL_RESTART
+  | Some AS4_SUPPORT
+  | Some ENHANCED_REFRESH
+  | None
+    -> Ecapability buf
 
 [%%cenum
   type oc =
@@ -346,8 +354,11 @@ type path_attrs = path_attr Cstruct.iter
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
-    Some Cstruct.(if is_extlen f then sizeof_fte + get_fte_len buf
-                  else sizeof_ft + get_ft_len buf)
+    Some (if is_extlen f then
+            sizeof_fte + get_fte_len buf
+          else
+            sizeof_ft + get_ft_len buf
+         )
   in
   let pf buf =
     let hlen =
@@ -369,10 +380,12 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some AGGREGATOR -> Aggregator
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
-
-    | _ ->
+    | Some LOCAL_PREF
+    | None
+      ->
       printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
       Cstruct.hexdump p; failwith "unknown path attr"
+
   in
   Cstruct.iter lenf pf buf
 

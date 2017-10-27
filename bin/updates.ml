@@ -15,21 +15,23 @@
  *)
 
 open Printf
-open Operators
 
-let npackets = ref 0 
+let npackets = ref 0
 
 let updates = function
-  | h, Mrt.Bgp4mp (_, Bgp4mp.Message Some (Bgp.Update u)) 
-    -> (printf "%d\t%s\t%s\n%!" 
-          !npackets (Mrt.header_to_string h) (Bgp.update_to_string u)
+  | h, Mrt.Bgp4mp (_, Message (Some (Update u)))
+    -> (printf "%d\t%s\t%s\n%!"
+          !npackets (Mrt.header_to_string h) (Mrt__Bgp.update_to_string u)
     )
   | _ -> ()
 
-let _ = 
+let _ =
   let fn = Sys.argv.(1) in
   let fd = Unix.(openfile fn [O_RDONLY] 0) in
-  let buf = Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1)) in
+  let buf =
+    let ba = Bigarray.(Array1.map_file fd Bigarray.char c_layout false (-1)) in
+    Cstruct.of_bigarray ba
+  in
   printf "file length %d\n%!" (Cstruct.len buf);
 
   let rec packets next = match next () with

@@ -2,11 +2,11 @@
 
 (library
  ((name        mrt)
-  (public_name mrt)
+  (public_name mrt-format)
   (synopsis "MRT parser library.")
   (preprocess (pps (ppx_cstruct)))
-  (flags (:standard -w "A-44-48-52" -safe-string))
+  (flags (:standard -w "A-44-48-52-32-27" -safe-string))
   (libraries (
-      cstruct ppx_cstruct
+      cstruct
   ))
 ))

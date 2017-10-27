@@ -1,25 +1,16 @@
 opam-version: "1.2"
-license:      "ISC"
-maintainer:   "mort@cantab.net"
-authors:      "Richard Mortier <mort@cantab.net>"
-homepage:     "https://github.com/mor1/ocaml-mrt"
-bug-reports:  "https://github.com/mor1/ocaml-mrt/issues"
-dev-repo:     "https://github.com/mor1/ocaml-mrt.git"
+maintainer: "Richard Mortier <mort@cantab.net>"
+authors: [ "Richard Mortier" ]
+license: "ISC"
+
+homepage: "https://github.com/mor1/ocaml-mrt"
+dev-repo: "https://github.com/mor1/ocaml-mrt.git"
+bug-reports: "https://github.com/mor1/ocaml-mrt/issues"
+doc: "https://mor1.github.io/mrt-format/"
 
 build: [
-  [make "configure"]
-  [make "build"]
-  ["cp" "./mrt.opam/install" "./mrt.install"]
-]
-
-install: [
-  [make "install"]
-]
-
-build-test: [make "test"]
-
-remove: [
-  ["ocamlfind" "remove" "mrt"]
+  [ "jbuilder" "subst" ] {pinned}
+  [ "jbuilder" "build" "-p" name "-j" jobs ]
 ]
 
 depends: [
@@ -27,5 +18,3 @@ depends: [
   "alcotest"  {test}
   "cstruct"   {>= "1.0.1"}
 ]
-
-available: [ocaml-version >= "4.01.0"]

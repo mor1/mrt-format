@@ -15,6 +15,7 @@ test:
 
 .PHONY: install
 install:
+	jbuilder build @install
 	jbuilder install
 
 .PHONY: uninstall
