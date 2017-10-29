@@ -1,5 +1,5 @@
 ORG = mor1
-REPO = ocaml-mrt
+REPO = mrt-format
 
 .PHONY: build
 build:
