@@ -1,10 +1,5 @@
-# `ocaml-mrt` -- MRT parsing library and CLI
+# `mrt-format` -- MRT parsing library and CLI
 
 %%VERSION%%
 
-A basic implementation of the [Multi-Threaded Routing
-Toolkit](https://tools.ietf.org/html/rfc6396) format, following my
-implementation in the [Python Routing Toolkit](https://github.com/mor1/pyrt) and
-documentation in the [RFC](https://tools.ietf.org/html/rfc6396) and the [PyRT
-README](https://github.com/mor1/pyrt/blob/master/README.mrtd). Provides
-(incomplete) parsing libraries and a simple CLI tool.
+A basic implementation of the [Multi-Threaded Routing Toolkit](https://tools.ietf.org/html/rfc6396) format, following my implementation in the [Python Routeing Toolkit](https://github.com/mor1/pyrt) and documentation in the [RFC](https://tools.ietf.org/html/rfc6396) and the [PyRT README](https://github.com/mor1/pyrt/blob/master/README.mrtd). Provides (incomplete) parsing libraries and a simple CLI tool.
