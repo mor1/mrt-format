@@ -128,7 +128,7 @@ let parse_nlris buf =
 
 [%%cstruct
   type h = {
-     (* marker: uint8_t array[16]; *)
+     marker: uint8_t; [@len 16]
      len: uint16_t;
      typ: uint8_t;
    }
@@ -450,11 +450,11 @@ let parse ?(caller=Normal) buf =
     match get_h_typ h |> int_to_tc with
     | None -> failwith "pf: bad BGP packet"
     | Some OPEN ->
-      let m,opts = Cstruct.split p (get_opent_opt_len p) in
+      let m,opts = Cstruct.split p (Cstruct.len p - get_opent_opt_len p) in
       let opts =
         let rec aux acc bs =
           if Cstruct.len bs = 0 then acc else (
-            let t,opt, bs = Tlv.get_tlv bs in
+            let t, opt, bs = Tlv.get_tlv bs in
             let opt = match int_to_oc t with
               | None -> failwith "bad option"
               | Some RESERVED -> Reserved
