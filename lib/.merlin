@@ -1,3 +1,0 @@
-PKG cstruct logs cstruct.ppx sexplib
-S **
-B _build/**

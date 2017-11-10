@@ -15,6 +15,113 @@
  *)
 
 type asn = Asn of int | Asn4 of int32
+
+type capability =
+  | Mp_ext of Afi.tc * Safi.tc
+  | Ecapability of Cstruct.t
+
+type opt_param =
+  | Reserved (* wtf? *)
+  | Authentication (* deprecated, rfc 4271 *)
+  | Capability of capability
+;;
+
+type opent = {
+  version: int;
+  my_as: asn;
+  hold_time: int;
+  bgp_id: Afi.ip4;
+  options: opt_param list;
+};;
+
+type origin = IGP | EGP | INCOMPLETE
+
+type asp = 
+  | Set of int32 list 
+  | Seq of int32 list
+;;
+
+type attr =
+  | ORIGIN
+  | AS_PATH
+  | NEXT_HOP
+  | MED
+  | LOCAL_PREF
+  | ATOMIC_AGGR
+  | AGGREGATOR
+  | COMMUNITY
+  | MP_REACH_NLRI
+  | MP_UNREACH_NLRI
+  | EXT_COMMUNITIES
+  | AS4_PATH
+;;
+
+type path_attr =
+  | Origin of origin option
+  | As_path of asp list
+  | Next_hop of Afi.ip4
+  | Community of int32
+  | Ext_communities
+  | Med of int32
+  | Atomic_aggr
+  | Aggregator
+  | Mp_reach_nlri
+  | Mp_unreach_nlri
+  | As4_path of asp list
+;;
+
+type path_attrs = path_attr list
+
+type update = {
+  withdrawn: Afi.prefix list;
+  path_attrs: path_attr list;
+  nlri: Afi.prefix list;
+};;
+
+type message_header_error_subcode =
+  | Connection_not_symchroniszed
+  | Bad_message_length of Cstruct.uint16
+  | Bad_message_type of Cstruct.uint8
+;;
+
+type open_message_error_subcode =
+  | Unspecific
+  | Unsupported_version_number of Cstruct.uint16
+  | Bad_peer_as 
+  | Bad_bgp_identifier
+  | Unsupported_optional_parameter
+  | Unacceptable_hold_time
+;;
+
+type update_message_error_subcode =
+  | Malformed_attribute_list 
+  | Unrecognized_wellknown_attribute of Cstruct.t 
+  | Missing_wellknown_attribute of attr
+  | Attribute_flags_error of Cstruct.t
+  | Attribute_length_error of Cstruct.t
+  | Invalid_origin_attribute of Cstruct.t
+  | Invalid_next_hop_attribute of Cstruct.t
+  | Optional_attribute_error of Cstruct.t
+  | Invalid_network_field
+  | Malformed_as_path
+;;
+
+type error_code = 
+  | Message_header_error of message_header_error_subcode
+  | Open_message_error of open_message_error_subcode
+  | Update_message_error of update_message_error_subcode
+  | Hold_timer_expired
+  | Finite_state_machine_error
+  | Cease
+;;
+
+type t =
+  | Open of opent
+  | Update of update
+  | Notification
+  | Keepalive
+;;
+
 val asn_to_string: asn -> string
 
 val pfxlen_to_bytes : int -> int
@@ -22,20 +129,18 @@ val get_nlri4 : Cstruct.t -> int -> Afi.prefix
 val get_nlri6 : Cstruct.t -> int -> Afi.prefix
 
 type caller = Normal | Table2 | Bgp4mp_as4
-type path_attrs
+
 val path_attrs_to_string : path_attrs -> string
 val parse_path_attrs : ?caller:caller -> Cstruct.t -> path_attrs
 
-type opent
 val opent_to_string : opent -> string
-
-type update
 val update_to_string : update -> string
 
-type t =
-  | Open of opent
-  | Update of update
-  | Notification
-  | Keepalive
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
+val parse_buffer_to_t : Cstruct.t -> t option
+
+val gen_open : opent -> Cstruct.t
+val gen_update : update -> Cstruct.t
+val gen_keepalive : Cstruct.t
+val gen_notification : Cstruct.t
