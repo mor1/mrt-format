@@ -118,7 +118,7 @@ type error_code =
 type t =
   | Open of opent
   | Update of update
-  | Notification
+  | Notification of error_code
   | Keepalive
 ;;
 
@@ -144,3 +144,4 @@ val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : Cstruct.t
 val gen_notification : Cstruct.t
+val gen_msg : t -> Cstruct.t

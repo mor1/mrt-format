@@ -1,4 +1,4 @@
-PKG cstruct logs cstruct.ppx sexplib ipaddr mrt-format
+PKG cstruct logs cstruct.ppx sexplib ipaddr mrt-format alcotest
 S lib/**
 S test/**
 

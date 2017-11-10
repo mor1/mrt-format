@@ -31,11 +31,11 @@ open Operators
 
 type caller = Normal | Table2 | Bgp4mp_as4
 
-
 let rec cstruct_iter_to_list iter =
   match iter () with
   | Some v -> v :: (cstruct_iter_to_list iter)
   | None -> []
+;;
 
 type asn = Asn of int | Asn4 of int32
 
@@ -378,8 +378,9 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path of asp list
+;;
 
-type path_attrs = path_attr list
+type path_attrs = path_attr list;;
 
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
@@ -418,12 +419,46 @@ let parse_path_attrs ?(caller=Normal) buf =
 
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
+;;
 
 type update = {
   withdrawn: Afi.prefix list;
   path_attrs: path_attr list;
   nlri: Afi.prefix list;
-}
+};;
+
+type message_header_error_subcode =
+  | Connection_not_symchroniszed
+  | Bad_message_length of Cstruct.uint16
+  | Bad_message_type of Cstruct.uint8
+
+type open_message_error_subcode =
+  | Unspecific
+  | Unsupported_version_number of Cstruct.uint16
+  | Bad_peer_as 
+  | Bad_bgp_identifier
+  | Unsupported_optional_parameter
+  | Unacceptable_hold_time
+
+type update_message_error_subcode =
+  | Malformed_attribute_list 
+  | Unrecognized_wellknown_attribute of Cstruct.t 
+  | Missing_wellknown_attribute of attr
+  | Attribute_flags_error of Cstruct.t
+  | Attribute_length_error of Cstruct.t
+  | Invalid_origin_attribute of Cstruct.t
+  | Invalid_next_hop_attribute of Cstruct.t
+  | Optional_attribute_error of Cstruct.t
+  | Invalid_network_field
+  | Malformed_as_path
+
+type error_code = 
+  | Message_header_error of message_header_error_subcode
+  | Open_message_error of open_message_error_subcode
+  | Update_message_error of update_message_error_subcode
+  | Hold_timer_expired
+  | Finite_state_machine_error
+  | Cease
 
 let rec path_attrs_to_string path_attrs = 
   let f path_attr acc =
@@ -451,7 +486,8 @@ let rec path_attrs_to_string path_attrs =
     | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
     | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
   in
-  List.fold_right f path_attrs "" 
+  List.fold_right f path_attrs ""
+;;
 
 (* let rec nlris_to_string iter = match iter () with
   | None -> ""
@@ -462,6 +498,7 @@ let rec nlris_to_string l_pfx =
     (Afi.prefix_to_string pfx) ^ "; " ^ acc
   in
   List.fold_right f l_pfx ""
+;;
 
 
 let update_to_string u =
@@ -469,18 +506,21 @@ let update_to_string u =
     (nlris_to_string u.withdrawn)
     (path_attrs_to_string u.path_attrs)
     (nlris_to_string u.nlri)
+;;
 
 type t =
   | Open of opent
   | Update of update
-  | Notification
+  | Notification of error_code
   | Keepalive
+;;
 
 let to_string = function
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
   | Update u -> sprintf "UPDATE(%s)" (update_to_string u)
-  | Notification -> "NOTIFICATION"
+  | Notification _ -> "NOTIFICATION"
   | Keepalive -> "KEEPALIVE"
+;;
 
 let parse ?(caller=Normal) buf =
   let lenf buf = Some (get_h_len buf) in
@@ -546,49 +586,6 @@ type path_attr_flag = {
   partial: bool;
   extlen: bool;
 };;
-
-type message_header_error_subcode =
-  | Connection_not_symchroniszed
-  | Bad_message_length of Cstruct.uint16
-  | Bad_message_type of Cstruct.uint8
-
-type open_message_error_subcode =
-  | Unspecific
-  | Unsupported_version_number of Cstruct.uint16
-  | Bad_peer_as 
-  | Bad_bgp_identifier
-  | Unsupported_optional_parameter
-  | Unacceptable_hold_time
-
-type update_message_error_subcode =
-  | Malformed_attribute_list 
-  | Unrecognized_wellknown_attribute of Cstruct.t 
-  | Missing_wellknown_attribute of attr
-  | Attribute_flags_error of Cstruct.t
-  | Attribute_length_error of Cstruct.t
-  | Invalid_origin_attribute of Cstruct.t
-  | Invalid_next_hop_attribute of Cstruct.t
-  | Optional_attribute_error of Cstruct.t
-  | Invalid_network_field
-  | Malformed_as_path
-
-type error_code = 
-  | Message_header_error of message_header_error_subcode
-  | Open_message_error of open_message_error_subcode
-  | Update_message_error of update_message_error_subcode
-  | Hold_timer_expired
-  | Finite_state_machine_error
-  | Cease
-
-
-let ip4_of_ints a b c d =
-  Int32.of_int ((a lsl 24) lor (b lsl 16) lor (c lsl 8) lor d)
-
-let ip6_half_of_ints a b c d = Int64.logor
-  (Int64.logor (Int64.shift_left (Int64.of_int a) 48) (Int64.shift_left (Int64.of_int b) 32))
-  (Int64.logor (Int64.shift_left (Int64.of_int c) 16) (Int64.of_int d))
-
-let ip6_of_ints a b c d e f g h = ((ip6_half_of_ints a b c d), (ip6_half_of_ints e f g h))
 
 let set_bit n pos b =
   if (n > 255) then raise (Failure "Invalid argument: n is too large.")
@@ -765,75 +762,46 @@ let fill_path_attrs_buffer buf path_attrs =
       total_len + len_ft + 4
     | _ -> total_len
   in
-    List.fold_left f 0 path_attrs
-
-let gen_path_attrs_buffer path_attrs =
-  (* TODO: use flags from input instead of a default flag *)
-  let buf = Cstruct.create 4096 in
-  let len = fill_path_attrs_buffer buf path_attrs in
-  let ret, _ = Cstruct.split buf len in ret
-
+  List.fold_left f 0 path_attrs
+;;
 
 let fill_update_buffer buf { withdrawn; path_attrs; nlri } = 
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
   let buf_len_wd, buf_wd_rest = Cstruct.split buf_p 2 in 
   let len_wd = fill_pfxs_buffer buf_wd_rest withdrawn in
-  let _, buf_rest = Cstruct.split buf_wd_rest len_wd in
+  let buf_rest = Cstruct.shift buf_wd_rest len_wd in
   let buf_len_pa, buf_pa_rest = Cstruct.split buf_rest 2 in
   let len_pa = fill_path_attrs_buffer buf_pa_rest path_attrs in
-  let _, buf_nlri = Cstruct.split buf_pa_rest len_pa in
+  let buf_nlri = Cstruct.shift buf_pa_rest len_pa in
   let len_nlri = fill_pfxs_buffer buf_nlri nlri in
   Cstruct.BE.set_uint16 buf_len_wd 0 len_wd;
   Cstruct.BE.set_uint16 buf_len_pa 0 len_pa;
   let _ = fill_header_buffer buf_h (sizeof_h + len_wd + len_pa + len_nlri + 4) UPDATE in
   sizeof_h + len_wd + len_pa + len_nlri + 4
+;;
 
 let gen_update u =
   let buf = Cstruct.create 4096 in
   let len = fill_update_buffer buf u in
   let ret, _ = Cstruct.split buf len in ret
+;;
   
-let fill_notification_buffer buf =
+let fill_notification_buffer buf e =
   let _ = fill_header_buffer buf 21 NOTIFICATION in
   Cstruct.BE.set_uint16 buf 19 0;
   buf
+;;
 
-let gen_notification =
+let gen_notification e =
   let buf = Cstruct.create 21 in
-  let _ = fill_notification_buffer buf in
+  let _ = fill_notification_buffer buf e in
   buf
+;;
 
-let () =
-  let withdrawn = 
-    [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 16); 
-      (Afi.IPv4 (ip4_of_ints 10 0 0 0), 8); 
-      (Afi.IPv4 (ip4_of_ints 172 16 84 0), 24);
-      ] 
-  in
-  let nlri = [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 24)] in
-  let path_attrs = [
-    Origin (Some IGP);
-    As_path [Set [2_l; 5_l; 3_l]];
-    Next_hop (ip4_of_ints 192 168 1 253);
-  ]
-  in 
-  let u = {withdrawn; path_attrs; nlri} in
-  let msg = gen_update u in
-  match parse msg () with
-  | Some v -> Printf.printf "%s\n" (to_string v)
-  | _ -> Printf.printf "Bad\n"
-
-let () =
-  let o = {
-    version=4;
-    my_as= Asn 2;
-    hold_time=180;
-    bgp_id=1001_l;
-    options=[]
-  }
-  in
-  let buf = gen_open o in
-  match parse buf () with
-  | Some v -> Printf.printf "%s\n" (to_string v)
-  | _ -> Printf.printf "Bad\n"
+let gen_msg = function
+  | Open o -> gen_open o
+  | Update u -> gen_update u
+  | Keepalive -> gen_keepalive
+  | Notification e -> gen_notification e
+;;
 
