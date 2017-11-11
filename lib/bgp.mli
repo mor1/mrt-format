@@ -41,7 +41,7 @@ type asp =
   | Seq of int32 list
 ;;
 
-type path_attr_flag = {
+type path_attr_flags = {
   optional: bool;
   transitive: bool;
   partial: bool;
@@ -62,11 +62,11 @@ type path_attr =
   | As4_path of asp list
 ;;
 
-type path_attrs = (path_attr_flag * path_attr) list
+type path_attrs = (path_attr_flags * path_attr) list
 
 type update = {
   withdrawn: Afi.prefix list;
-  path_attrs: path_attr list;
+  path_attrs: path_attrs;
   nlri: Afi.prefix list;
 };;
 

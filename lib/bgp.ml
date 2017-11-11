@@ -370,16 +370,6 @@ let parse_as4path buf =
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 
-(* let aspath_to_string a =
-  let rec asps_to_string a = match a () with
-    | None -> ""
-    | Some v -> sprintf "%ld <- %s" v (asps_to_string a)
-  in match a with
-  | None -> ""
-  | Some Set v -> sprintf "set(%s)" (asps_to_string v)
-  | Some Seq v -> sprintf "seq(%s)" (asps_to_string v) *)
-
-
 let aspath_to_string l_asp =
   let f asp acc =
     let rec asps_to_string asn_list = 
@@ -414,6 +404,44 @@ let parse_aspath buf =
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 ;;
+
+type path_attr_flags = {
+  optional: bool;
+  transitive: bool;
+  partial: bool;
+  extlen: bool;
+};;
+
+let set_bit n pos b =
+  if (n > 255) then raise (Failure "Invalid argument: n is too large.")
+  else if (pos > 7) then raise (Failure "Invalid argument: pos is too large.")
+  else
+    let n_32 = Int32.of_int n in 
+    let res_32 = 
+      match b with
+      | 0 -> (n_32 ^^^ (1_l <<< pos))
+      | 1 -> (n_32 ||| (1_l <<< pos))
+      | _ -> raise (Failure "Invalid argument: b should be either 0 or 1.")
+    in
+      Int32.to_int res_32
+;;
+
+let attr_flags_to_int {optional; transitive; partial; extlen} =
+  let n_ref = ref 0 in
+  if (optional) then n_ref := set_bit (!n_ref) 7 1;
+  if (transitive) then n_ref := set_bit (!n_ref) 6 1;
+  if (partial) then n_ref := set_bit (!n_ref) 5 1;
+  if (extlen) then n_ref := set_bit (!n_ref) 4 1;
+  !n_ref
+;;
+
+let int_to_attr_flags n = {
+  optional = is_optional n;
+  transitive = is_transitive n;
+  partial = is_partial n;
+  extlen = is_extlen n;
+};;
+
   
 type path_attr =
   | Origin of origin
@@ -429,23 +457,23 @@ type path_attr =
   | As4_path of asp list
 ;;
 
-type path_attrs = path_attr list;;
+type path_attrs = (path_attr_flags * path_attr) list;;
 
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
-    Some (if is_extlen f then
-            sizeof_fte + get_fte_len buf
-          else
-            sizeof_ft + get_ft_len buf
-         )
+    Some (
+      if is_extlen f then sizeof_fte + get_fte_len buf
+      else sizeof_ft + get_ft_len buf
+    )
   in
   let pf buf =
+    let flags = int_to_attr_flags (get_ft_flags buf) in
     let hlen =
-      if buf |> get_ft_flags |> is_extlen then sizeof_fte else sizeof_ft
+      if flags.extlen then sizeof_fte else sizeof_ft
     in
     let h, p = Cstruct.split buf hlen in
-    match h |> get_ft_tc |> int_to_attr_t with
+    let path_attr = match h |> get_ft_tc |> int_to_attr_t with
     | Some ORIGIN -> 
       (match Cstruct.get_uint8 p 0 |> int_to_origin with
       | Some v -> Origin v 
@@ -470,18 +498,19 @@ let parse_path_attrs ?(caller=Normal) buf =
     | None ->
       printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
       Cstruct.hexdump p; failwith "unknown path attr"
+    in (flags, path_attr)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 ;;
 
 type update = {
   withdrawn: Afi.prefix list;
-  path_attrs: path_attr list;
+  path_attrs: path_attrs;
   nlri: Afi.prefix list;
 };;
 
 let rec path_attrs_to_string path_attrs = 
-  let f path_attr acc =
+  let f (_, path_attr) acc =
     match path_attr with 
     | Origin v ->
       sprintf "ORIGIN(%s); %s" (origin_to_string v) acc
@@ -752,11 +781,11 @@ let parse ?(caller=Normal) buf =
              options = opts;
            }
     | Some UPDATE ->
-      let withdrawn,bs =
+      let withdrawn, bs =
         let wl = Cstruct.BE.get_uint16 p 0 in
         Cstruct.split ~start:2 p wl
       in
-      let path_attrs,nlri =
+      let path_attrs, nlri =
         let pl = Cstruct.BE.get_uint16 bs 0 in
         Cstruct.split ~start:2 bs pl
       in
@@ -779,28 +808,6 @@ let parse_buffer_to_t buf =
   | Some it -> Some it
 ;;
 
-type path_attr_flag = {
-  optional: bool;
-  transitive: bool;
-  partial: bool;
-  extlen: bool;
-};;
-
-let set_bit n pos b =
-  if (n > 255) then raise (Failure "Invalid argument: n is too large.")
-  else if (pos > 7) then raise (Failure "Invalid argument: pos is too large.")
-  else
-    let n_32 = Int32.of_int n in 
-    let res_32 = 
-      match b with
-      | 0 -> (n_32 ^^^ (1_l <<< pos))
-      | 1 -> (n_32 ||| (1_l <<< pos))
-      | _ -> raise (Failure "Invalid argument: b should be either 0 or 1.")
-    in
-      Int32.to_int res_32
-;;
-
-(* let len_header_buffer = 19 *)
 
 let fill_header_buffer buf len typ = 
   let marker, _ = Cstruct.split buf 16 in
@@ -810,8 +817,6 @@ let fill_header_buffer buf len typ =
   sizeof_h
 ;;
 
-(* let len_open_buffer (_o: opent) =
-  len_header_buffer + sizeof_opent *)
 
 let fill_open_buffer buf (o: opent) =
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
@@ -876,19 +881,10 @@ let fill_pfxs_buffer buf pfxs =
   List.fold_left f 0 pfxs
 ;;
 
-let attr_flags_to_uint8 {optional; transitive; partial; extlen} =
-  let n_ref = ref 0 in
-  if (optional) then n_ref := set_bit (!n_ref) 7 1;
-  if (transitive) then n_ref := set_bit (!n_ref) 6 1;
-  if (partial) then n_ref := set_bit (!n_ref) 5 1;
-  if (extlen) then n_ref := set_bit (!n_ref) 4 1;
-  !n_ref
-;;
-
 let len_attr_ft_buffer = sizeof_ft;;
 
 let fill_attr_ft_buffer buf flags tc len =
-  set_ft_flags buf (attr_flags_to_uint8 flags);
+  set_ft_flags buf (attr_flags_to_int flags);
   set_ft_tc buf (attr_t_to_int tc);
   set_ft_len buf len;
   sizeof_ft
@@ -899,17 +895,8 @@ let gen_attr_ft_buffer flags tc len =
   let ret, _ = Cstruct.split buf len in
   ret
 
-let gen_attr_fte_buffer flags tc len =
-  let buf = Cstruct.create (sizeof_fte) in
-  set_fte_flags buf (attr_flags_to_uint8 flags);
-  set_fte_tc buf (attr_t_to_int tc);
-  set_fte_len buf len;
-  buf
-
-let len_attr_fte_buffer = sizeof_fte
-
 let fill_attr_fte_buffer buf flags tc len =
-  set_fte_flags buf (attr_flags_to_uint8 flags);
+  set_fte_flags buf (attr_flags_to_int flags);
   set_fte_tc buf (attr_t_to_int tc);
   set_fte_len buf len;
   sizeof_fte
@@ -939,22 +926,31 @@ let gen_attr_as_path_data_buffer asp =
   let ret, _ = Cstruct.split buf len in ret
 
 let fill_path_attrs_buffer buf path_attrs =
-  let flags = { optional=false; transitive=true; partial=false; extlen=false } in
-  let f total_len path_attr =
+  let f total_len (flags, path_attr) =
     let _, buf_slice = Cstruct.split buf total_len in
     match path_attr with
     | Origin origin -> 
-      let len_ft = fill_attr_ft_buffer buf_slice flags ORIGIN 1 in
+      let len_ft = 
+        if flags.transitive then fill_attr_fte_buffer buf_slice flags ORIGIN 1
+        else fill_attr_ft_buffer buf_slice flags ORIGIN 1
+      in
       Cstruct.set_uint8 buf_slice len_ft (origin_to_int origin);
       total_len + len_ft + 1
     | As_path asp ->
       let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
       let len_p = fill_attr_as_path_data_buffer buf_p asp in
-      let len_ft = fill_attr_ft_buffer buf_ft flags AS_PATH len_p in
+      let len_ft = 
+        if flags.transitive then 
+          fill_attr_fte_buffer buf_slice flags AS4_PATH len_p
+        else fill_attr_ft_buffer buf_slice flags AS_PATH len_p
+      in
       total_len + len_ft + len_p
     | Next_hop ip4 -> 
       let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
-      let len_ft = fill_attr_ft_buffer buf_ft flags NEXT_HOP 4 in
+      let len_ft = 
+        if flags.transitive then fill_attr_fte_buffer buf_slice flags NEXT_HOP 4
+        else fill_attr_ft_buffer buf_slice flags NEXT_HOP 4
+      in
       Cstruct.BE.set_uint32 buf_p 0 ip4;
       total_len + len_ft + 4
     | _ -> total_len
