@@ -51,3 +51,11 @@ let () =
   } in
   test (Open o)
 ;;
+
+let () = 
+  let err = Message_header_error (Bad_message_length 50) in
+  test (Notification err)
+;;
+
+let () =
+  test (Keepalive)

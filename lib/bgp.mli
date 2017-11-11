@@ -41,21 +41,6 @@ type asp =
   | Seq of int32 list
 ;;
 
-type attr =
-  | ORIGIN
-  | AS_PATH
-  | NEXT_HOP
-  | MED
-  | LOCAL_PREF
-  | ATOMIC_AGGR
-  | AGGREGATOR
-  | COMMUNITY
-  | MP_REACH_NLRI
-  | MP_UNREACH_NLRI
-  | EXT_COMMUNITIES
-  | AS4_PATH
-;;
-
 type path_attr =
   | Origin of origin option
   | As_path of asp list
@@ -78,13 +63,13 @@ type update = {
   nlri: Afi.prefix list;
 };;
 
-type message_header_error_subcode =
-  | Connection_not_symchroniszed
+type message_header_error =
+  | Connection_not_synchroniszed
   | Bad_message_length of Cstruct.uint16
   | Bad_message_type of Cstruct.uint8
 ;;
 
-type open_message_error_subcode =
+type open_message_error =
   | Unspecific
   | Unsupported_version_number of Cstruct.uint16
   | Bad_peer_as 
@@ -93,10 +78,10 @@ type open_message_error_subcode =
   | Unacceptable_hold_time
 ;;
 
-type update_message_error_subcode =
+type update_message_error =
   | Malformed_attribute_list 
   | Unrecognized_wellknown_attribute of Cstruct.t 
-  | Missing_wellknown_attribute of attr
+  | Missing_wellknown_attribute of Cstruct.uint8
   | Attribute_flags_error of Cstruct.t
   | Attribute_length_error of Cstruct.t
   | Invalid_origin_attribute of Cstruct.t
@@ -106,10 +91,10 @@ type update_message_error_subcode =
   | Malformed_as_path
 ;;
 
-type error_code = 
-  | Message_header_error of message_header_error_subcode
-  | Open_message_error of open_message_error_subcode
-  | Update_message_error of update_message_error_subcode
+type error = 
+  | Message_header_error of message_header_error
+  | Open_message_error of open_message_error
+  | Update_message_error of update_message_error
   | Hold_timer_expired
   | Finite_state_machine_error
   | Cease
@@ -118,7 +103,7 @@ type error_code =
 type t =
   | Open of opent
   | Update of update
-  | Notification of error_code
+  | Notification of error
   | Keepalive
 ;;
 
@@ -143,5 +128,5 @@ val parse_buffer_to_t : Cstruct.t -> t option
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : Cstruct.t
-val gen_notification : Cstruct.t
+val gen_notification : error -> Cstruct.t
 val gen_msg : t -> Cstruct.t

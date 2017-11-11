@@ -211,11 +211,13 @@ type opt_param =
   | Reserved (* wtf? *)
   | Authentication (* deprecated, rfc 4271 *)
   | Capability of capability
+;;
 
 let opt_param_to_string = function
   | Reserved -> "RESERVED"
   | Authentication -> "AUTH"
   | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
+;;
 
 [%%cstruct
   type opent = {
@@ -242,7 +244,7 @@ let opent_to_string o =
     (o.options ||> opt_param_to_string |> String.concat "; ")
 
 [%%cenum
-  type attr =
+  type attr_t =
     | ORIGIN [@id 1]
     | AS_PATH
     | NEXT_HOP
@@ -396,7 +398,7 @@ let parse_path_attrs ?(caller=Normal) buf =
       if buf |> get_ft_flags |> is_extlen then sizeof_fte else sizeof_ft
     in
     let h,p = Cstruct.split buf hlen in
-    match h |> get_ft_tc |> int_to_attr with
+    match h |> get_ft_tc |> int_to_attr_t with
     | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
     | Some AS_PATH -> (match caller with
         | Normal -> As_path (parse_aspath p)
@@ -426,39 +428,6 @@ type update = {
   path_attrs: path_attr list;
   nlri: Afi.prefix list;
 };;
-
-type message_header_error_subcode =
-  | Connection_not_symchroniszed
-  | Bad_message_length of Cstruct.uint16
-  | Bad_message_type of Cstruct.uint8
-
-type open_message_error_subcode =
-  | Unspecific
-  | Unsupported_version_number of Cstruct.uint16
-  | Bad_peer_as 
-  | Bad_bgp_identifier
-  | Unsupported_optional_parameter
-  | Unacceptable_hold_time
-
-type update_message_error_subcode =
-  | Malformed_attribute_list 
-  | Unrecognized_wellknown_attribute of Cstruct.t 
-  | Missing_wellknown_attribute of attr
-  | Attribute_flags_error of Cstruct.t
-  | Attribute_length_error of Cstruct.t
-  | Invalid_origin_attribute of Cstruct.t
-  | Invalid_next_hop_attribute of Cstruct.t
-  | Optional_attribute_error of Cstruct.t
-  | Invalid_network_field
-  | Malformed_as_path
-
-type error_code = 
-  | Message_header_error of message_header_error_subcode
-  | Open_message_error of open_message_error_subcode
-  | Update_message_error of update_message_error_subcode
-  | Hold_timer_expired
-  | Finite_state_machine_error
-  | Cease
 
 let rec path_attrs_to_string path_attrs = 
   let f path_attr acc =
@@ -508,17 +477,234 @@ let update_to_string u =
     (nlris_to_string u.nlri)
 ;;
 
+type message_header_error =
+  | Connection_not_synchroniszed
+  | Bad_message_length of Cstruct.uint16
+  | Bad_message_type of Cstruct.uint8
+;;
+
+type open_message_error =
+  | Unspecific
+  | Unsupported_version_number of Cstruct.uint16
+  | Bad_peer_as 
+  | Bad_bgp_identifier
+  | Unsupported_optional_parameter
+  | Unacceptable_hold_time
+;;
+
+type update_message_error =
+  | Malformed_attribute_list 
+  | Unrecognized_wellknown_attribute of Cstruct.t 
+  | Missing_wellknown_attribute of Cstruct.uint8
+  | Attribute_flags_error of Cstruct.t
+  | Attribute_length_error of Cstruct.t
+  | Invalid_origin_attribute of Cstruct.t
+  | Invalid_next_hop_attribute of Cstruct.t
+  | Optional_attribute_error of Cstruct.t
+  | Invalid_network_field
+  | Malformed_as_path
+;;
+
+type error = 
+  | Message_header_error of message_header_error
+  | Open_message_error of open_message_error
+  | Update_message_error of update_message_error
+  | Hold_timer_expired
+  | Finite_state_machine_error
+  | Cease
+;;
+
+[%%cenum
+  type message_header_error_t =
+    | CONNECTION_NOT_SYNCHRONIZED [@id 1]
+    | BAD_MESSAGE_LENGTH
+    | BAD_MESSAGE_TYPE
+  [@@uint8_t]
+]
+
+[%%cenum
+  type open_message_error_t =
+    | UNSPECIFIC [@id 0]
+    | UNSUPPORTED_VERSION_NUMBER
+    | BAD_PEER_AS 
+    | BAD_BGP_IDENTIFIER
+    | UNSUPPORTED_OPTIONAL_PARAMETER
+    | UNACCEPTABLE_HOLD_TIME
+  [@@uint8_t]
+]
+
+[%%cenum
+  type update_message_error_t =
+    | MALFORMED_ATTRIBUTE_LIST [@id 1]
+    | UNRECOGNIZED_WELLKNOWN_ATTRIBUTE
+    | MISSING_WELLKNOWN_ATTRIBUTE
+    | ATTRIBUTE_FLAGS_ERROR
+    | ATTRIBUTE_LENGTH_ERROR
+    | INVALID_ORIGIN_ATTRIBUTE
+    | INVALID_NEXT_HOP_ATTRIBUTE [@id 8]
+    | OPTIONAL_ATTRIBUTE_ERROR
+    | INVALID_NETWORK_FIELD
+    | MALFORMED_AS_PATH
+  [@@uint8_t]
+]
+
+[%%cenum
+  type error_t =
+    | MESSAGE_HEADER_ERROR [@id 1]
+    | OPEN_MESSAGE_ERROR
+    | UPDATE_MESSAGE_ERROR
+    | HOLD_TIMER_EXPIRED
+    | FINITE_STATE_MACHINE_ERROR
+    | CEASE
+  [@@uint8_t]
+]
+
+[%%cstruct
+  type err = {
+    ec: uint8_t;
+    sec: uint8_t;
+  }
+  [@@big_endian]
+]
+
+let parse_error p =
+  match get_err_ec p |> int_to_error_t with
+  | Some MESSAGE_HEADER_ERROR -> 
+    let suberror = match get_err_sec p |> int_to_message_header_error_t with
+    | Some CONNECTION_NOT_SYNCHRONIZED -> Connection_not_synchroniszed
+    | Some BAD_MESSAGE_LENGTH -> 
+      let bad_len = Cstruct.BE.get_uint16 p 2 in
+      Bad_message_length bad_len
+    | Some BAD_MESSAGE_TYPE ->
+      let bad_type = Cstruct.get_uint8 p 2 in
+      Bad_message_type bad_type
+    | None -> failwith "Notification package error"
+    in Message_header_error suberror
+  | Some OPEN_MESSAGE_ERROR ->
+    let suberror = match get_err_sec p |> int_to_open_message_error_t with
+    | Some UNSPECIFIC -> Unspecific
+    | Some UNSUPPORTED_VERSION_NUMBER ->
+      let vn = Cstruct.BE.get_uint16 p 2 in
+      Unsupported_version_number vn
+    | Some BAD_PEER_AS ->
+      Bad_peer_as
+    | Some BAD_BGP_IDENTIFIER ->
+      Bad_bgp_identifier
+    | Some UNSUPPORTED_OPTIONAL_PARAMETER ->
+      Unsupported_optional_parameter
+    | Some UNACCEPTABLE_HOLD_TIME ->
+      Unacceptable_hold_time
+    | None -> failwith "Notification package error"
+    in Open_message_error suberror
+  | Some UPDATE_MESSAGE_ERROR ->
+    let suberror = match get_err_sec p |> int_to_update_message_error_t with
+    | Some MALFORMED_ATTRIBUTE_LIST -> Malformed_attribute_list
+    | Some UNRECOGNIZED_WELLKNOWN_ATTRIBUTE ->
+      let attr = Cstruct.shift p 2 in
+      Unrecognized_wellknown_attribute attr
+    | Some MISSING_WELLKNOWN_ATTRIBUTE -> 
+      let attr = Cstruct.get_uint8 p 2 in
+      Missing_wellknown_attribute attr
+    | Some ATTRIBUTE_FLAGS_ERROR -> 
+      let attr = Cstruct.shift p 2 in
+      Attribute_flags_error attr
+    | Some ATTRIBUTE_LENGTH_ERROR ->
+      let attr = Cstruct.shift p 2 in
+      Attribute_length_error attr
+    | Some INVALID_ORIGIN_ATTRIBUTE ->
+      let attr = Cstruct.shift p 2 in
+      Invalid_origin_attribute attr
+    | Some INVALID_NEXT_HOP_ATTRIBUTE ->
+      let attr = Cstruct.shift p 2 in
+      Invalid_next_hop_attribute attr
+    | Some OPTIONAL_ATTRIBUTE_ERROR ->
+      let attr = Cstruct.shift p 2 in
+      Optional_attribute_error attr
+    | Some INVALID_NETWORK_FIELD ->
+      Invalid_network_field
+    | Some MALFORMED_AS_PATH ->
+      Malformed_as_path
+    | None -> failwith "Notification package error"
+    in Update_message_error suberror
+  | Some HOLD_TIMER_EXPIRED ->
+    Hold_timer_expired
+  | Some FINITE_STATE_MACHINE_ERROR ->
+    Finite_state_machine_error
+  | Some CEASE ->
+    Cease
+  | None -> failwith "Notification package error"
+;;
+
+let error_to_string err =
+  match err with
+  | Message_header_error sub ->
+    let error = "Message header error" in
+    let suberror = (match sub with 
+    | Connection_not_synchroniszed ->
+      "Connection not synchronized"
+    | Bad_message_length bad_len ->
+      "Bad message length"
+    | Bad_message_type bad_type ->
+      "Bad message type"
+    ) in sprintf "%s : %s" error suberror
+  | Open_message_error sub ->
+    let error = "Open message error" in
+    let suberror = (match sub with
+    | Unspecific -> "Unspecific"
+    | Unsupported_version_number vn ->
+      "Unsupported version number"
+    | Bad_peer_as -> 
+      "Bad peer as"
+    | Bad_bgp_identifier ->
+      "Bad bgp identifier"
+    | Unsupported_optional_parameter ->
+      "Unsupported optional parameter"
+    | Unacceptable_hold_time ->
+      "Unacceptable hold time"
+    ) in sprintf "%s : %s" error suberror
+  | Update_message_error sub ->
+    let error = "Update message error" in
+    let suberror = (match sub with
+    | Malformed_attribute_list ->
+      "Malformed attribute list"
+    | Unrecognized_wellknown_attribute buf_attr ->
+      "Unrecognized wellknown attribute"
+    | Missing_wellknown_attribute attr ->
+      "Missing wellknown attribute"
+    | Attribute_flags_error buf_attr ->
+      "Attribute flags error"
+    | Attribute_length_error buf_attr ->
+      "Attribute length error"
+    | Invalid_origin_attribute buf_attr ->
+      "Invalid origin attribute"
+    | Invalid_next_hop_attribute buf_attr ->
+      "Invalid next hop attribute"
+    | Optional_attribute_error buf_attr ->
+      "Optioanl attribute error"
+    | Invalid_network_field ->
+      "Invalid network field"
+    | Malformed_as_path ->
+      "Malformed as path"
+    ) in sprintf "%s : %s" error suberror
+  | Hold_timer_expired ->
+    "Hold timer expired"
+  | Finite_state_machine_error ->
+    "Finite state machine error"
+  | Cease ->
+    "Cease"
+;;
+
 type t =
   | Open of opent
   | Update of update
-  | Notification of error_code
+  | Notification of error
   | Keepalive
 ;;
 
 let to_string = function
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
   | Update u -> sprintf "UPDATE(%s)" (update_to_string u)
-  | Notification _ -> "NOTIFICATION"
+  | Notification e -> sprintf "NOTIFICATION(%s)" (error_to_string e)
   | Keepalive -> "KEEPALIVE"
 ;;
 
@@ -526,7 +712,7 @@ let parse ?(caller=Normal) buf =
   let lenf buf = Some (get_h_len buf) in
   let pf buf =
     let hlen = sizeof_h in
-    let h,p = Cstruct.split buf hlen in
+    let h, p = Cstruct.split buf hlen in
     match get_h_typ h |> int_to_tc with
     | None -> failwith "pf: bad BGP packet"
     | Some OPEN ->
@@ -552,7 +738,6 @@ let parse ?(caller=Normal) buf =
              bgp_id = get_opent_bgp_id m;
              options = opts;
            }
-
     | Some UPDATE ->
       let withdrawn,bs =
         let wl = Cstruct.BE.get_uint16 p 0 in
@@ -567,8 +752,9 @@ let parse ?(caller=Normal) buf =
         path_attrs = parse_path_attrs ~caller path_attrs;
         nlri = parse_nlris nlri;
       }
-
-    | Some NOTIFICATION -> Notification
+    | Some NOTIFICATION -> 
+      let error = parse_error p in
+      Notification error
     | Some KEEPALIVE -> Keepalive
   in
   Cstruct.iter lenf pf buf
@@ -599,6 +785,7 @@ let set_bit n pos b =
       | _ -> raise (Failure "Invalid argument: b should be either 0 or 1.")
     in
       Int32.to_int res_32
+;;
 
 (* let len_header_buffer = 19 *)
 
@@ -608,6 +795,7 @@ let fill_header_buffer buf len typ =
   set_h_len buf len;
   set_h_typ buf (tc_to_int typ);
   sizeof_h
+;;
 
 (* let len_open_buffer (_o: opent) =
   len_header_buffer + sizeof_opent *)
@@ -627,7 +815,7 @@ let fill_open_buffer buf (o: opent) =
   
 (* TODO: Add optional parameter support *)
 let gen_open (o: opent) =
-  let buf = Cstruct.create 1024 in
+  let buf = Cstruct.create 4096 in
   let len = fill_open_buffer buf o in
   let ret, _ = Cstruct.split buf len in
   ret
@@ -688,7 +876,7 @@ let len_attr_ft_buffer = sizeof_ft;;
 
 let fill_attr_ft_buffer buf flags tc len =
   set_ft_flags buf (attr_flags_to_uint8 flags);
-  set_ft_tc buf (attr_to_int tc);
+  set_ft_tc buf (attr_t_to_int tc);
   set_ft_len buf len;
   sizeof_ft
 
@@ -701,7 +889,7 @@ let gen_attr_ft_buffer flags tc len =
 let gen_attr_fte_buffer flags tc len =
   let buf = Cstruct.create (sizeof_fte) in
   set_fte_flags buf (attr_flags_to_uint8 flags);
-  set_fte_tc buf (attr_to_int tc);
+  set_fte_tc buf (attr_t_to_int tc);
   set_fte_len buf len;
   buf
 
@@ -709,7 +897,7 @@ let len_attr_fte_buffer = sizeof_fte
 
 let fill_attr_fte_buffer buf flags tc len =
   set_fte_flags buf (attr_flags_to_uint8 flags);
-  set_fte_tc buf (attr_to_int tc);
+  set_fte_tc buf (attr_t_to_int tc);
   set_fte_len buf len;
   sizeof_fte
 
@@ -787,15 +975,96 @@ let gen_update u =
 ;;
   
 let fill_notification_buffer buf e =
-  let _ = fill_header_buffer buf 21 NOTIFICATION in
-  Cstruct.BE.set_uint16 buf 19 0;
-  buf
+  let buf_h, buf_p = Cstruct.split buf sizeof_h in
+  let len_p = match e with
+  | Message_header_error sub ->
+    set_err_ec buf_p (error_t_to_int MESSAGE_HEADER_ERROR);
+    (match sub with 
+    | Connection_not_synchroniszed ->
+      set_err_sec buf_p (message_header_error_t_to_int CONNECTION_NOT_SYNCHRONIZED);
+      sizeof_err
+    | Bad_message_length bad_len ->
+      set_err_sec buf_p (message_header_error_t_to_int BAD_MESSAGE_LENGTH);
+      Cstruct.BE.set_uint16 buf_p 2 bad_len;
+      sizeof_err + 2
+    | Bad_message_type bad_type ->
+      set_err_sec buf_p (message_header_error_t_to_int BAD_MESSAGE_TYPE);
+      Cstruct.set_uint8 buf_p 2 bad_type;
+      sizeof_err + 1
+    )
+  | Open_message_error sub ->
+    set_err_ec buf_p (error_t_to_int OPEN_MESSAGE_ERROR);
+    (match sub with
+    | Unspecific -> sizeof_err
+    | Unsupported_version_number vn ->
+      Cstruct.BE.set_uint16 buf_p 2 vn;
+      sizeof_err + 2
+    | Bad_peer_as -> 
+      set_err_sec buf_p (open_message_error_t_to_int BAD_PEER_AS);
+      sizeof_err
+    | Bad_bgp_identifier ->
+      set_err_sec buf_p (open_message_error_t_to_int BAD_BGP_IDENTIFIER);
+      sizeof_err
+    | Unsupported_optional_parameter ->
+      set_err_sec buf_p (open_message_error_t_to_int UNSUPPORTED_OPTIONAL_PARAMETER);
+      sizeof_err
+    | Unacceptable_hold_time ->
+      set_err_sec buf_p (open_message_error_t_to_int UNACCEPTABLE_HOLD_TIME);
+      sizeof_err
+    )
+  | Update_message_error sub ->
+    set_err_ec buf_p (error_t_to_int UPDATE_MESSAGE_ERROR);
+    let fill buf_p err buf_d =
+      set_err_sec buf_p (update_message_error_t_to_int err);
+      let buf_rest = Cstruct.shift buf_p sizeof_err in
+      let n, _ = Cstruct.fillv [buf_d] buf_rest in
+      sizeof_err + n
+    in (match sub with
+    | Malformed_attribute_list ->
+      set_err_sec buf_p (update_message_error_t_to_int MALFORMED_ATTRIBUTE_LIST);
+      sizeof_err
+    | Unrecognized_wellknown_attribute buf_attr ->
+      fill buf_p UNRECOGNIZED_WELLKNOWN_ATTRIBUTE buf_attr
+    | Missing_wellknown_attribute attr ->
+      set_err_sec buf_p (update_message_error_t_to_int MISSING_WELLKNOWN_ATTRIBUTE);
+      Cstruct.set_uint8 buf_p 2 attr;
+      sizeof_err + 1
+    | Attribute_flags_error buf_attr ->
+      fill buf_p ATTRIBUTE_FLAGS_ERROR buf_attr
+    | Attribute_length_error buf_attr ->
+      fill buf_p ATTRIBUTE_LENGTH_ERROR buf_attr
+    | Invalid_origin_attribute buf_attr ->
+      fill buf_p INVALID_ORIGIN_ATTRIBUTE buf_attr
+    | Invalid_next_hop_attribute buf_attr ->
+      fill buf_p INVALID_NEXT_HOP_ATTRIBUTE buf_attr
+    | Optional_attribute_error buf_attr ->
+      fill buf_p OPTIONAL_ATTRIBUTE_ERROR buf_attr
+    | Invalid_network_field ->
+      set_err_sec buf_p (update_message_error_t_to_int INVALID_NETWORK_FIELD);
+      sizeof_err
+    | Malformed_as_path ->
+      set_err_sec buf_p (update_message_error_t_to_int MALFORMED_AS_PATH);
+      sizeof_err
+    )
+  | Hold_timer_expired ->
+    set_err_ec buf_p (error_t_to_int HOLD_TIMER_EXPIRED);
+    sizeof_err
+  | Finite_state_machine_error ->
+    set_err_ec buf_p (error_t_to_int FINITE_STATE_MACHINE_ERROR);
+    sizeof_err
+  | Cease ->
+    set_err_ec buf_p (error_t_to_int CEASE);
+    sizeof_err
+  in
+  let _ = fill_header_buffer buf_h (sizeof_h + len_p) NOTIFICATION in
+  sizeof_h + len_p
 ;;
 
 let gen_notification e =
-  let buf = Cstruct.create 21 in
-  let _ = fill_notification_buffer buf e in
-  buf
+  let buf = Cstruct.create 4096 in
+  let len = fill_notification_buffer buf e in
+  let ret, _ = Cstruct.split buf len in
+  ret
 ;;
 
 let gen_msg = function
