@@ -41,8 +41,15 @@ type asp =
   | Seq of int32 list
 ;;
 
+type path_attr_flag = {
+  optional: bool;
+  transitive: bool;
+  partial: bool;
+  extlen: bool;
+};;
+
 type path_attr =
-  | Origin of origin option
+  | Origin of origin
   | As_path of asp list
   | Next_hop of Afi.ip4
   | Community of int32
@@ -55,7 +62,7 @@ type path_attr =
   | As4_path of asp list
 ;;
 
-type path_attrs = path_attr list
+type path_attrs = (path_attr_flag * path_attr) list
 
 type update = {
   withdrawn: Afi.prefix list;
@@ -106,6 +113,8 @@ type t =
   | Notification of error
   | Keepalive
 ;;
+
+
 
 val asn_to_string: asn -> string
 

@@ -306,6 +306,50 @@ let is_extlen f = is_bit 4 f
   [@@big_endian]
 ]
 
+type message_header_error =
+  | Connection_not_synchroniszed
+  | Bad_message_length of Cstruct.uint16
+  | Bad_message_type of Cstruct.uint8
+;;
+
+type open_message_error =
+  | Unspecific
+  | Unsupported_version_number of Cstruct.uint16
+  | Bad_peer_as 
+  | Bad_bgp_identifier
+  | Unsupported_optional_parameter
+  | Unacceptable_hold_time
+;;
+
+type update_message_error =
+  | Malformed_attribute_list 
+  | Unrecognized_wellknown_attribute of Cstruct.t 
+  | Missing_wellknown_attribute of Cstruct.uint8
+  | Attribute_flags_error of Cstruct.t
+  | Attribute_length_error of Cstruct.t
+  | Invalid_origin_attribute of Cstruct.t
+  | Invalid_next_hop_attribute of Cstruct.t
+  | Optional_attribute_error of Cstruct.t
+  | Invalid_network_field
+  | Malformed_as_path
+;;
+
+type error = 
+  | Message_header_error of message_header_error
+  | Open_message_error of open_message_error
+  | Update_message_error of update_message_error
+  | Hold_timer_expired
+  | Finite_state_machine_error
+  | Cease
+;;
+
+type notification_error =
+  | Invalid_error_code
+  | Invalid_sub_error_code
+
+exception Parse_error of error
+exception Notification_error of notification_error
+
 
 type asp = Set of int32 list | Seq of int32 list
 let parse_as4path buf =
@@ -319,7 +363,8 @@ let parse_as4path buf =
         buf
     in
     match int_to_aspt t with
-    | None -> failwith "parse_as4path: unknown segment type"
+    | None -> 
+      raise (Parse_error (Update_message_error Malformed_as_path))
     | Some AS_SET -> Set (cstruct_iter_to_list vs)
     | Some AS_SEQ -> Seq (cstruct_iter_to_list vs)
   in
@@ -349,6 +394,7 @@ let aspath_to_string l_asp =
     sprintf "%s;%s" s acc
   in
   List.fold_right f l_asp ""
+;;
 
 let parse_aspath buf =
   let lenf buf = Some (sizeof_asp + get_asp_n buf * 2) in
@@ -361,15 +407,16 @@ let parse_aspath buf =
         buf
     in
     match int_to_aspt t with
-    | None -> failwith "parse_aspath: unknown segment type"
+    | None -> 
+      raise (Parse_error (Update_message_error Malformed_as_path))
     | Some AS_SET -> Set (cstruct_iter_to_list vs)
     | Some AS_SEQ -> Seq (cstruct_iter_to_list vs)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
+;;
   
-
 type path_attr =
-  | Origin of origin option
+  | Origin of origin
   | As_path of asp list
   | Next_hop of Afi.ip4
   | Community of int32
@@ -397,9 +444,15 @@ let parse_path_attrs ?(caller=Normal) buf =
     let hlen =
       if buf |> get_ft_flags |> is_extlen then sizeof_fte else sizeof_ft
     in
-    let h,p = Cstruct.split buf hlen in
+    let h, p = Cstruct.split buf hlen in
     match h |> get_ft_tc |> int_to_attr_t with
-    | Some ORIGIN -> Origin (Cstruct.get_uint8 p 0 |> int_to_origin)
+    | Some ORIGIN -> 
+      (match Cstruct.get_uint8 p 0 |> int_to_origin with
+      | Some v -> Origin v 
+      | None -> 
+        let b = Cstruct.shift buf 1 in
+        raise (Parse_error (Update_message_error (Invalid_origin_attribute b)))
+      )
     | Some AS_PATH -> (match caller with
         | Normal -> As_path (parse_aspath p)
         | Table2 | Bgp4mp_as4 -> As4_path (parse_as4path p)
@@ -414,11 +467,9 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
     | Some LOCAL_PREF
-    | None
-      ->
+    | None ->
       printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
       Cstruct.hexdump p; failwith "unknown path attr"
-
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 ;;
@@ -433,9 +484,7 @@ let rec path_attrs_to_string path_attrs =
   let f path_attr acc =
     match path_attr with 
     | Origin v ->
-      sprintf "ORIGIN(%s); %s"
-        (match v with None -> "error" | Some v -> origin_to_string v)
-        acc
+      sprintf "ORIGIN(%s); %s" (origin_to_string v) acc
     | As_path v ->
       sprintf "AS_PATH(%s); %s"
         (aspath_to_string v) acc
@@ -475,43 +524,6 @@ let update_to_string u =
     (nlris_to_string u.withdrawn)
     (path_attrs_to_string u.path_attrs)
     (nlris_to_string u.nlri)
-;;
-
-type message_header_error =
-  | Connection_not_synchroniszed
-  | Bad_message_length of Cstruct.uint16
-  | Bad_message_type of Cstruct.uint8
-;;
-
-type open_message_error =
-  | Unspecific
-  | Unsupported_version_number of Cstruct.uint16
-  | Bad_peer_as 
-  | Bad_bgp_identifier
-  | Unsupported_optional_parameter
-  | Unacceptable_hold_time
-;;
-
-type update_message_error =
-  | Malformed_attribute_list 
-  | Unrecognized_wellknown_attribute of Cstruct.t 
-  | Missing_wellknown_attribute of Cstruct.uint8
-  | Attribute_flags_error of Cstruct.t
-  | Attribute_length_error of Cstruct.t
-  | Invalid_origin_attribute of Cstruct.t
-  | Invalid_next_hop_attribute of Cstruct.t
-  | Optional_attribute_error of Cstruct.t
-  | Invalid_network_field
-  | Malformed_as_path
-;;
-
-type error = 
-  | Message_header_error of message_header_error
-  | Open_message_error of open_message_error
-  | Update_message_error of update_message_error
-  | Hold_timer_expired
-  | Finite_state_machine_error
-  | Cease
 ;;
 
 [%%cenum
@@ -578,7 +590,7 @@ let parse_error p =
     | Some BAD_MESSAGE_TYPE ->
       let bad_type = Cstruct.get_uint8 p 2 in
       Bad_message_type bad_type
-    | None -> failwith "Notification package error"
+    | None -> raise (Notification_error Invalid_sub_error_code)
     in Message_header_error suberror
   | Some OPEN_MESSAGE_ERROR ->
     let suberror = match get_err_sec p |> int_to_open_message_error_t with
@@ -594,7 +606,7 @@ let parse_error p =
       Unsupported_optional_parameter
     | Some UNACCEPTABLE_HOLD_TIME ->
       Unacceptable_hold_time
-    | None -> failwith "Notification package error"
+    | None -> raise (Notification_error Invalid_sub_error_code)
     in Open_message_error suberror
   | Some UPDATE_MESSAGE_ERROR ->
     let suberror = match get_err_sec p |> int_to_update_message_error_t with
@@ -624,7 +636,7 @@ let parse_error p =
       Invalid_network_field
     | Some MALFORMED_AS_PATH ->
       Malformed_as_path
-    | None -> failwith "Notification package error"
+    | None -> raise (Notification_error Invalid_sub_error_code)
     in Update_message_error suberror
   | Some HOLD_TIMER_EXPIRED ->
     Hold_timer_expired
@@ -632,7 +644,7 @@ let parse_error p =
     Finite_state_machine_error
   | Some CEASE ->
     Cease
-  | None -> failwith "Notification package error"
+  | None -> raise (Notification_error Invalid_error_code)
 ;;
 
 let error_to_string err =
@@ -714,7 +726,8 @@ let parse ?(caller=Normal) buf =
     let hlen = sizeof_h in
     let h, p = Cstruct.split buf hlen in
     match get_h_typ h |> int_to_tc with
-    | None -> failwith "pf: bad BGP packet"
+    | None -> 
+      raise (Parse_error (Message_header_error (Bad_message_type (get_h_typ h))))
     | Some OPEN ->
       let m,opts = Cstruct.split p (Cstruct.len p - get_opent_opt_len p) in
       let opts =
@@ -930,14 +943,10 @@ let fill_path_attrs_buffer buf path_attrs =
   let f total_len path_attr =
     let _, buf_slice = Cstruct.split buf total_len in
     match path_attr with
-    | Origin origin_opt -> 
-      let n_origin = match origin_opt with
-        | Some origin -> origin_to_int origin
-        | None -> raise (Failure "Invalid origin")
-      in
-        let len_ft = fill_attr_ft_buffer buf_slice flags ORIGIN 1 in
-        Cstruct.set_uint8 buf_slice len_ft n_origin;
-        total_len + len_ft + 1
+    | Origin origin -> 
+      let len_ft = fill_attr_ft_buffer buf_slice flags ORIGIN 1 in
+      Cstruct.set_uint8 buf_slice len_ft (origin_to_int origin);
+      total_len + len_ft + 1
     | As_path asp ->
       let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
       let len_p = fill_attr_as_path_data_buffer buf_p asp in
