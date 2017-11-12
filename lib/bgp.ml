@@ -879,7 +879,7 @@ let gen_open (o: opent) =
   ret
 ;;
   
-let gen_keepalive =
+let gen_keepalive () =
   let buf = Cstruct.create 19 in
   let _ = fill_header_buffer buf 19 KEEPALIVE in
   buf
@@ -1115,7 +1115,7 @@ let gen_notification e =
 let gen_msg = function
   | Open o -> gen_open o
   | Update u -> gen_update u
-  | Keepalive -> gen_keepalive
+  | Keepalive -> gen_keepalive ()
   | Notification e -> gen_notification e
 ;;
 
