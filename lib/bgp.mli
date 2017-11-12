@@ -36,7 +36,7 @@ type opent = {
 
 type origin = IGP | EGP | INCOMPLETE
 
-type asp = 
+type asp_segment = 
   | Set of int32 list 
   | Seq of int32 list
 ;;
@@ -50,7 +50,7 @@ type path_attr_flags = {
 
 type path_attr =
   | Origin of origin
-  | As_path of asp list
+  | As_path of asp_segment list
   | Next_hop of Afi.ip4
   | Community of int32
   | Ext_communities
@@ -59,7 +59,7 @@ type path_attr =
   | Aggregator
   | Mp_reach_nlri
   | Mp_unreach_nlri
-  | As4_path of asp list
+  | As4_path of asp_segment list
 ;;
 
 type path_attrs = (path_attr_flags * path_attr) list
@@ -107,6 +107,13 @@ type error =
   | Cease
 ;;
 
+type notification_error =
+  | Invalid_error_code
+  | Invalid_sub_error_code
+  | Bad_message_length_n
+  | Connection_not_synchroniszed_n
+;;
+
 type t =
   | Open of opent
   | Update of update
@@ -114,7 +121,9 @@ type t =
   | Keepalive
 ;;
 
-
+type msg_error =
+  | General of error
+  | Special of notification_error
 
 val asn_to_string: asn -> string
 
@@ -132,7 +141,7 @@ val update_to_string : update -> string
 
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
-val parse_buffer_to_t : Cstruct.t -> t option
+val parse_buffer_to_t : Cstruct.t -> (t, msg_error) Result.result
 
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
