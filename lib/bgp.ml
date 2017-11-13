@@ -465,6 +465,7 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path of asp_segment list
+  | Unknown of int
 ;;
 
 type path_attrs = (path_attr_flags * path_attr) list;;
@@ -506,8 +507,9 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
     | Some LOCAL_PREF
     | None ->
-      printf "U %d %d\n%!" (get_ft_tc h) (Cstruct.len p);
-      Cstruct.hexdump p; failwith "unknown path attr"
+      printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p);
+      Cstruct.hexdump p;
+      Unknown (get_ft_tc h)
     in (flags, path_attr)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
@@ -542,6 +544,7 @@ let rec path_attrs_to_string path_attrs =
     | Aggregator -> "AGGREGATOR; " ^ acc
     | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
     | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
+    | Unknown tc -> sprintf "Unknown attribute with tc %d" tc
   in
   List.fold_right f path_attrs ""
 ;;
@@ -971,7 +974,7 @@ let fill_path_attrs_buffer buf path_attrs =
     match path_attr with
     | Origin origin -> 
       let len_ft = 
-        if flags.transitive then fill_attr_fte_buffer buf_slice flags ORIGIN 1
+        if flags.extlen then fill_attr_fte_buffer buf_slice flags ORIGIN 1
         else fill_attr_ft_buffer buf_slice flags ORIGIN 1
       in
       Cstruct.set_uint8 buf_slice len_ft (origin_to_int origin);
@@ -980,7 +983,7 @@ let fill_path_attrs_buffer buf path_attrs =
       let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
       let len_p = fill_attr_as_path_data_buffer buf_p asp in
       let len_ft = 
-        if flags.transitive then 
+        if flags.extlen then 
           fill_attr_fte_buffer buf_slice flags AS4_PATH len_p
         else fill_attr_ft_buffer buf_slice flags AS_PATH len_p
       in
@@ -988,7 +991,7 @@ let fill_path_attrs_buffer buf path_attrs =
     | Next_hop ip4 -> 
       let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
       let len_ft = 
-        if flags.transitive then fill_attr_fte_buffer buf_slice flags NEXT_HOP 4
+        if flags.extlen then fill_attr_fte_buffer buf_slice flags NEXT_HOP 4
         else fill_attr_ft_buffer buf_slice flags NEXT_HOP 4
       in
       Cstruct.BE.set_uint32 buf_p 0 ip4;

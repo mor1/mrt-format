@@ -60,6 +60,7 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path of asp_segment list
+  | Unknown of int
 ;;
 
 type path_attrs = (path_attr_flags * path_attr) list
