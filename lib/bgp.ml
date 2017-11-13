@@ -924,27 +924,21 @@ let fill_pfxs_buffer buf pfxs =
   List.fold_left f 0 pfxs
 ;;
 
-let len_attr_ft_buffer = sizeof_ft;;
-
 let fill_attr_ft_buffer buf flags tc len =
   set_ft_flags buf (attr_flags_to_int flags);
   set_ft_tc buf (attr_t_to_int tc);
   set_ft_len buf len;
   sizeof_ft
-
-let gen_attr_ft_buffer flags tc len =
-  let buf = Cstruct.create 4096 in
-  let len = fill_attr_ft_buffer buf flags tc len in
-  let ret, _ = Cstruct.split buf len in
-  ret
+;;
 
 let fill_attr_fte_buffer buf flags tc len =
   set_fte_flags buf (attr_flags_to_int flags);
   set_fte_tc buf (attr_t_to_int tc);
   set_fte_len buf len;
   sizeof_fte
+;;
 
-let fill_attr_as_path_data_buffer buf asp =
+(* let fill_attr_as_path_data_buffer buf asp =
   let f total_len set_or_seq = 
     let st, l = match set_or_seq with Set v -> (1, v) | Seq v -> (2, v) in
     let _, buf_this = Cstruct.split buf total_len in
@@ -962,6 +956,30 @@ let fill_attr_as_path_data_buffer buf asp =
     total_len + (l_len + 1) * 2
   in
   List.fold_left f 0 asp
+;; *)
+
+let fill_attr_as_path_data_buffer ?(sizeof_asn=2) buf asp =
+  let f total_len segment = 
+    let set_or_seq, asn_list = 
+      match segment with Set v -> (1, v) | Seq v -> (2, v) 
+    in
+    let buf_slice = Cstruct.shift buf total_len in
+    
+    Cstruct.set_uint8 buf_slice 0 set_or_seq;
+    Cstruct.set_uint8 buf_slice 1 (List.length asn_list);
+    
+    let g len asn =
+      let () = if (sizeof_asn = 2) then
+        Cstruct.BE.set_uint16 buf_slice len (Int32.to_int asn)
+      else
+        Cstruct.BE.set_uint32 buf_slice len asn
+      in len + sizeof_asn
+    in 
+    
+    total_len + (List.fold_left g 2 asn_list)
+  in
+  List.fold_left f 0 asp
+;;
 
 let gen_attr_as_path_data_buffer asp =
   let buf = Cstruct.create 4096 in
@@ -970,32 +988,43 @@ let gen_attr_as_path_data_buffer asp =
 
 let fill_path_attrs_buffer buf path_attrs =
   let f total_len (flags, path_attr) =
-    let _, buf_slice = Cstruct.split buf total_len in
+    let buf_slice = Cstruct.shift buf total_len in
+    let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+    let buf_h, buf_p = Cstruct.split buf_slice len_h in
     match path_attr with
     | Origin origin -> 
-      let len_ft = 
-        if flags.extlen then fill_attr_fte_buffer buf_slice flags ORIGIN 1
-        else fill_attr_ft_buffer buf_slice flags ORIGIN 1
-      in
-      Cstruct.set_uint8 buf_slice len_ft (origin_to_int origin);
-      total_len + len_ft + 1
-    | As_path asp ->
-      let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
-      let len_p = fill_attr_as_path_data_buffer buf_p asp in
-      let len_ft = 
+      let _ = 
         if flags.extlen then 
-          fill_attr_fte_buffer buf_slice flags AS4_PATH len_p
-        else fill_attr_ft_buffer buf_slice flags AS_PATH len_p
+          fill_attr_fte_buffer buf_h flags ORIGIN 1
+        else fill_attr_ft_buffer buf_h flags ORIGIN 1
       in
-      total_len + len_ft + len_p
+      Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
+      total_len + len_h + 1
+    | As_path asp ->
+      let len_p = fill_attr_as_path_data_buffer buf_p asp in
+      let _ = 
+        if flags.extlen then 
+          fill_attr_fte_buffer buf_slice flags AS_PATH len_p
+        else 
+          fill_attr_ft_buffer buf_slice flags AS_PATH len_p
+      in
+      total_len + len_h + len_p  
     | Next_hop ip4 -> 
-      let buf_ft, buf_p = Cstruct.split buf_slice sizeof_ft in
-      let len_ft = 
+      let _ = 
         if flags.extlen then fill_attr_fte_buffer buf_slice flags NEXT_HOP 4
         else fill_attr_ft_buffer buf_slice flags NEXT_HOP 4
       in
       Cstruct.BE.set_uint32 buf_p 0 ip4;
-      total_len + len_ft + 4
+      total_len + len_h + 4
+    | As4_path asp ->
+    let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
+    let _ = 
+      if flags.extlen then 
+        fill_attr_fte_buffer buf_slice flags AS4_PATH len_p
+      else 
+        fill_attr_ft_buffer buf_slice flags AS4_PATH len_p
+    in
+    total_len + len_h + len_p  
     | _ -> total_len
   in
   List.fold_left f 0 path_attrs
