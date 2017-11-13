@@ -245,6 +245,7 @@ let opent_to_string o =
 
 [%%cenum
   type attr_t =
+    | UNKNOWN [@id 0]
     | ORIGIN [@id 1]
     | AS_PATH
     | NEXT_HOP
@@ -506,6 +507,7 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
     | Some LOCAL_PREF
+    | Some UNKNOWN -> failwith "This should not occur"
     | None ->
       printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p);
       Cstruct.hexdump p;
@@ -938,26 +940,6 @@ let fill_attr_fte_buffer buf flags tc len =
   sizeof_fte
 ;;
 
-(* let fill_attr_as_path_data_buffer buf asp =
-  let f total_len set_or_seq = 
-    let st, l = match set_or_seq with Set v -> (1, v) | Seq v -> (2, v) in
-    let _, buf_this = Cstruct.split buf total_len in
-    let l_len = List.length l in
-    Cstruct.set_uint8 buf_this 0 st;
-    Cstruct.set_uint8 buf_this 1 l_len;
-
-    let i = ref 0 in
-    let rec loop l =
-      match l with
-      | [] -> ()
-      | x::xs -> Cstruct.BE.set_uint16 buf_this (2 + (!i) * 2) (Int32.to_int x); i := !i + 1; loop xs
-    in
-    loop l;
-    total_len + (l_len + 1) * 2
-  in
-  List.fold_left f 0 asp
-;; *)
-
 let fill_attr_as_path_data_buffer ?(sizeof_asn=2) buf asp =
   let f total_len segment = 
     let set_or_seq, asn_list = 
@@ -991,41 +973,32 @@ let fill_path_attrs_buffer buf path_attrs =
     let buf_slice = Cstruct.shift buf total_len in
     let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
     let buf_h, buf_p = Cstruct.split buf_slice len_h in
-    match path_attr with
-    | Origin origin -> 
-      let _ = 
-        if flags.extlen then 
-          fill_attr_fte_buffer buf_h flags ORIGIN 1
-        else fill_attr_ft_buffer buf_h flags ORIGIN 1
-      in
-      Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
-      total_len + len_h + 1
-    | As_path asp ->
-      let len_p = fill_attr_as_path_data_buffer buf_p asp in
-      let _ = 
-        if flags.extlen then 
-          fill_attr_fte_buffer buf_slice flags AS_PATH len_p
-        else 
-          fill_attr_ft_buffer buf_slice flags AS_PATH len_p
-      in
-      total_len + len_h + len_p  
-    | Next_hop ip4 -> 
-      let _ = 
-        if flags.extlen then fill_attr_fte_buffer buf_slice flags NEXT_HOP 4
-        else fill_attr_ft_buffer buf_slice flags NEXT_HOP 4
-      in
-      Cstruct.BE.set_uint32 buf_p 0 ip4;
-      total_len + len_h + 4
-    | As4_path asp ->
-    let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
-    let _ = 
-      if flags.extlen then 
-        fill_attr_fte_buffer buf_slice flags AS4_PATH len_p
-      else 
-        fill_attr_ft_buffer buf_slice flags AS4_PATH len_p
+    
+    let len_p, attr_t = 
+      match path_attr with
+      | Origin origin -> 
+        Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
+        1, ORIGIN
+      | As_path asp ->
+        let len_p = fill_attr_as_path_data_buffer buf_p asp in
+        len_p, AS_PATH 
+      | Next_hop ip4 -> 
+        Cstruct.BE.set_uint32 buf_p 0 ip4;
+        4, NEXT_HOP
+      | As4_path asp ->
+        let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
+        len_p, AS4_PATH 
+      | _ -> 0, UNKNOWN
     in
-    total_len + len_h + len_p  
-    | _ -> total_len
+    
+    if attr_t != UNKNOWN then
+      let _ = if flags.extlen then
+        fill_attr_fte_buffer buf_h flags attr_t len_p
+      else
+        fill_attr_ft_buffer buf_h flags attr_t len_p
+      in
+      total_len + len_h + len_p
+    else total_len
   in
   List.fold_left f 0 path_attrs
 ;;
