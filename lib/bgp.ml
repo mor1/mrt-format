@@ -795,10 +795,11 @@ let parse ?(caller=Normal) buf =
     | Some OPEN ->
       if (len < 29) then
         raise (Msg_error (Message_header_error (Bad_message_length len)));
-      let m,opts = Cstruct.split p (Cstruct.len p - get_opent_opt_len p) in
+      let opt_len = get_opent_opt_len p in
+      let m, opts = Cstruct.split p (len - sizeof_h - opt_len) in
       let opts =
-        let rec aux acc bs =
-          if Cstruct.len bs = 0 then acc else (
+        let rec aux len acc bs =
+          if opt_len = opt_len then acc else (
             let t, opt, bs = Tlv.get_tlv bs in
             let opt = match int_to_oc t with
               | None -> failwith "bad option"
@@ -807,9 +808,9 @@ let parse ?(caller=Normal) buf =
               | Some CAPABILITY ->
                 let t,c, _ = Tlv.get_tlv bs in
                 Capability (parse_capability c (int_to_cc t))
-            in aux (opt :: acc) bs
+            in aux (opt_len + Tlv.sizeof_tl + Tlv.get_tl_l bs) (opt :: acc) bs
           )
-        in aux [] opts
+        in aux 0 [] opts
       in
       Open { version = get_opent_version m;
              my_as = Asn (get_opent_my_as m);

@@ -30,7 +30,7 @@ type opent = {
   version: int;
   my_as: asn;
   hold_time: int;
-  bgp_id: Afi.ip4;
+  bgp_id: int32;
   options: opt_param list;
 };;
 
@@ -149,3 +149,4 @@ val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
 val gen_notification : error -> Cstruct.t
 val gen_msg : t -> Cstruct.t
+
