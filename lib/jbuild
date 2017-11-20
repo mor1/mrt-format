@@ -1,25 +1,9 @@
 (jbuild_version 1)
 
 (library
- ((name        bgp)
-  (public_name mrt-format.bgp)
-  (synopsis "BGP message parser and serializer.")
-  (preprocess (pps (ppx_cstruct)))
-  (modules (bgp afi operators safi tlv))
-  (flags (:standard -w "A-44-48-52-32-27" -safe-string))
-  (libraries (
-      cstruct
-      result
-  ))
-))
-
-
-
-(library
  ((name        mrt)
   (public_name mrt-format)
   (synopsis "MRT parser library.")
-  (modules (mrt bgp4mp operators))
   (preprocess (pps (ppx_cstruct)))
   (flags (:standard -w "A-44-48-52-32-27" -safe-string))
   (libraries (

@@ -148,5 +148,5 @@ val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
 val gen_notification : error -> Cstruct.t
-val gen_msg : t -> Cstruct.t
+val gen_msg : ?test:bool -> t -> Cstruct.t
 

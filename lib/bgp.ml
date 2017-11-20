@@ -509,8 +509,8 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some LOCAL_PREF
     | Some UNKNOWN -> failwith "This should not occur"
     | None ->
-      printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p);
-      Cstruct.hexdump p;
+      (* printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p); *)
+      (* Cstruct.hexdump p; *)
       Unknown (get_ft_tc h)
     in (flags, path_attr)
   in
@@ -975,28 +975,35 @@ let fill_path_attrs_buffer buf path_attrs =
     let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
     let buf_h, buf_p = Cstruct.split buf_slice len_h in
     
-    let len_p, attr_t = 
+    let len_p, attr_t, new_flags = 
       match path_attr with
       | Origin origin -> 
         Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
-        1, ORIGIN
+        1, ORIGIN, flags
       | As_path asp ->
         let len_p = fill_attr_as_path_data_buffer buf_p asp in
-        len_p, AS_PATH 
+        len_p, AS_PATH, flags
       | Next_hop ip4 -> 
         Cstruct.BE.set_uint32 buf_p 0 ip4;
-        4, NEXT_HOP
+        (* Cstruct.BE.set_uint32 buf_p 0 (Ipaddr.V4.to_int32 (Ipaddr.V4.of_string_exn "192.168.1.101")); *)
+        4, NEXT_HOP, flags
       | As4_path asp ->
+        let new_flags = {
+          optional=true;
+          transitive=flags.transitive;
+          partial=flags.partial;
+          extlen=flags.extlen;
+        } in
         let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
-        len_p, AS4_PATH 
-      | _ -> 0, UNKNOWN
+        len_p, AS4_PATH, new_flags
+      | _ -> 0, UNKNOWN, flags
     in
     
     if attr_t != UNKNOWN then
       let _ = if flags.extlen then
-        fill_attr_fte_buffer buf_h flags attr_t len_p
+        fill_attr_fte_buffer buf_h new_flags attr_t len_p
       else
-        fill_attr_ft_buffer buf_h flags attr_t len_p
+        fill_attr_ft_buffer buf_h new_flags attr_t len_p
       in
       total_len + len_h + len_p
     else total_len
@@ -1118,7 +1125,7 @@ let gen_notification e =
   ret
 ;;
 
-let gen_msg = function
+let gen_msg ?(test=false) = function
   | Open o -> gen_open o
   | Update u -> gen_update u
   | Keepalive -> gen_keepalive ()
