@@ -189,8 +189,8 @@ type opent = {
 }
 
 let opent_to_string o =
-  sprintf "version:%d, my_as:%s, hold_time:%d, bgp_id:0x%08lx, options:[%s]"
-    o.version (asn_to_string o.my_as) o.hold_time o.bgp_id
+  sprintf "version:%d, my_as:%s, hold_time:%d, bgp_id:%s, options:[%s]"
+    o.version (asn_to_string o.my_as) o.hold_time (Ipaddr.V4.to_string (Ipaddr.V4.of_int32 o.bgp_id))
     (o.options ||> opt_param_to_string |> String.concat "; ")
 
 let is_optional f = is_bit 7 f
