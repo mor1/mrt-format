@@ -69,13 +69,13 @@ type update = {
   withdrawn: Afi.prefix list;
   path_attrs: path_attrs;
   nlri: Afi.prefix list;
-};;
+}
 
 type message_header_error =
   | Connection_not_synchroniszed
   | Bad_message_length of Cstruct.uint16
   | Bad_message_type of Cstruct.uint8
-;;
+
 
 type open_message_error =
   | Unspecific
@@ -84,7 +84,7 @@ type open_message_error =
   | Bad_bgp_identifier
   | Unsupported_optional_parameter
   | Unacceptable_hold_time
-;;
+
 
 type update_message_error =
   | Malformed_attribute_list 
@@ -97,7 +97,7 @@ type update_message_error =
   | Optional_attribute_error of Cstruct.t
   | Invalid_network_field
   | Malformed_as_path
-;;
+
 
 type error = 
   | Message_header_error of message_header_error
@@ -106,21 +106,21 @@ type error =
   | Hold_timer_expired
   | Finite_state_machine_error
   | Cease
-;;
+
 
 type notification_error =
   | Invalid_error_code
   | Invalid_sub_error_code
   | Bad_message_length_n
   | Connection_not_synchroniszed_n
-;;
+
 
 type t =
   | Open of opent
   | Update of update
   | Notification of error
   | Keepalive
-;;
+
 
 type msg_error =
   | General of error
@@ -142,7 +142,7 @@ val update_to_string : update -> string
 
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
-val parse_buffer_to_t : Cstruct.t -> (t, msg_error) Result.result
+val parse_buffer_to_t : Cstruct.t -> (t * int, msg_error) Result.result option
 
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t

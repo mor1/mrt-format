@@ -16,7 +16,7 @@ let ip6_of_ints a b c d e f g h =
 
 let test_parse_gen_combo t =
   let msg1 = gen_msg t in
-  let t2 = match (parse_buffer_to_t msg1) with Error e -> assert false | Ok v -> v in
+  let t2 = match (parse_buffer_to_t msg1) with Error e -> assert false | Ok (v, _) -> v in
   let msg2 = gen_msg t2 in
   assert (Cstruct.equal msg1 msg2);
   Printf.printf "Test pass: %s\n" (Bgp.to_string t2)

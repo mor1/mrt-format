@@ -25,6 +25,7 @@ type payload =
   | Table of Table.t
   | Table2 of Table2.t
   | Unknown of Cstruct.t
+
 val payload_to_string : payload -> string
 
 type t = header * payload

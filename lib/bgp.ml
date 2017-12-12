@@ -16,6 +16,7 @@
 
 open Printf
 open Operators
+include Bgp_cstruct
 
 (* Lame, lame, lame. RFC6396, sec. 4.3.4 says that AS_PATHs MUST be encoded as
    4 bytes in a TABLE_DUMP_V2 RIB_ENTRY, no matter what. Similarly in BGP4MP
@@ -49,6 +50,7 @@ let asn_to_string = function
     if a < 65536_l then sprintf "%ld" a
     else
       sprintf "%ld.%ld" (a >>> 16) (a &&& 0xFFFF_l)
+;;
 
 let pfxlen_to_bytes l = (l+7) / 8
 
@@ -62,6 +64,7 @@ let get_nlri4 buf off =
     done;
     Afi.IPv4 (!v <<< (8*(4 - bl))), pl
   )
+;;
 
 let get_nlri6 buf off =
   Cstruct.(
@@ -85,6 +88,7 @@ let get_nlri6 buf off =
     in
     Afi.IPv6 (hi, lo), pl
   )
+;;
 
 let get_partial buf =
   let get_partial_ip4 buf =
@@ -126,6 +130,7 @@ let get_partial buf =
     else
       Afi.IPv4 (get_partial_ip4 ip)
   in (ip,l)
+;;
 
 let parse_nlris buf =
   let lenf buf = Some (1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0))) in
@@ -136,49 +141,13 @@ let parse_nlris buf =
       get_nlri6 buf 0
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
+;;
 
-[%%cstruct
-  type h = {
-     marker: uint8_t; [@len 16]
-     len: uint16_t;
-     typ: uint8_t;
-   }
-  [@@big_endian]
-]
-
-[%%cenum
-  type tc =
-    | OPEN [@id 1]
-    | UPDATE
-    | NOTIFICATION
-    | KEEPALIVE
-  [@@uint8_t]
-]
-
-[%%cenum
-  type cc =
-    | MP_EXT                      [@id 1]
-    | ROUTE_REFRESH
-    | OUTBOUND_ROUTE_FILTERING
-    | MULTIPLE_ROUTES_DESTINATION
-    | EXT_HEXTHOP_ENC
-    | GRACEFUL_RESTART            [@id 64]
-    | AS4_SUPPORT
-    | ENHANCED_REFRESH            [@id 70]
-  [@@uint8_t]
-]
-
-[%%cstruct
-  type mp_ext = {
-    afi: uint16_t;
-    safi: uint16_t;
-  }
-  [@@big_endian]
-]
 
 type capability =
-  | Mp_ext of Afi.tc * Safi.tc
-  | Ecapability of Cstruct.t
+| Mp_ext of Afi.tc * Safi.tc
+| Ecapability of Cstruct.t
+
 
 let capability_to_string = function
   | Mp_ext (a,s) ->
@@ -199,14 +168,6 @@ let parse_capability buf = function
   | None
     -> Ecapability buf
 
-[%%cenum
-  type oc =
-    | RESERVED [@id 0]
-    | AUTHENTICATION
-    | CAPABILITY
-  [@@uint8_t]
-]
-
 type opt_param =
   | Reserved (* wtf? *)
   | Authentication (* deprecated, rfc 4271 *)
@@ -218,17 +179,6 @@ let opt_param_to_string = function
   | Authentication -> "AUTH"
   | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
 ;;
-
-[%%cstruct
-  type opent = {
-    version: uint8_t;
-    my_as: uint16_t;
-    hold_time: uint16_t;
-    bgp_id: uint32_t;
-    opt_len: uint8_t;
-  }
-  [@@big_endian]
-]
 
 type opent = {
   version: int;
@@ -243,69 +193,11 @@ let opent_to_string o =
     o.version (asn_to_string o.my_as) o.hold_time o.bgp_id
     (o.options ||> opt_param_to_string |> String.concat "; ")
 
-[%%cenum
-  type attr_t =
-    | UNKNOWN [@id 0]
-    | ORIGIN [@id 1]
-    | AS_PATH
-    | NEXT_HOP
-    | MED
-    | LOCAL_PREF
-    | ATOMIC_AGGR
-    | AGGREGATOR
-    | COMMUNITY
-    | MP_REACH_NLRI [@id 14]
-    | MP_UNREACH_NLRI
-    | EXT_COMMUNITIES
-    | AS4_PATH
-  [@@uint8_t]
-]
-
-[%%cenum
-  type origin =
-    | IGP
-    | EGP
-    | INCOMPLETE
-  [@@uint8_t]
-]
-
-[%%cstruct
-  type ft = {
-    flags: uint8_t;
-    tc: uint8_t;
-    len: uint8_t;
-  }
-  [@@big_endian]
-]
-
-[%%cstruct
-  type fte = {
-    flags: uint8_t;
-    tc: uint8_t;
-    len: uint16_t
-  }
-  [@@big_endian]
-]
-
 let is_optional f = is_bit 7 f
 let is_transitive f = is_bit 6 f
 let is_partial f = is_bit 5 f
 let is_extlen f = is_bit 4 f
 
-[%%cenum
-  type aspt =
-    | AS_SET [@id 1]
-    | AS_SEQ
-  [@@uint8_t]
-]
-
-[%%cstruct
-  type asp = {
-    t: uint8_t;
-    n: uint8_t;
-  }
-  [@@big_endian]
-]
 
 type message_header_error =
   | Connection_not_synchroniszed
@@ -564,58 +456,7 @@ let update_to_string u =
     (nlris_to_string u.nlri)
 ;;
 
-[%%cenum
-  type message_header_error_t =
-    | CONNECTION_NOT_SYNCHRONIZED [@id 1]
-    | BAD_MESSAGE_LENGTH
-    | BAD_MESSAGE_TYPE
-  [@@uint8_t]
-]
 
-[%%cenum
-  type open_message_error_t =
-    | UNSPECIFIC [@id 0]
-    | UNSUPPORTED_VERSION_NUMBER
-    | BAD_PEER_AS 
-    | BAD_BGP_IDENTIFIER
-    | UNSUPPORTED_OPTIONAL_PARAMETER
-    | UNACCEPTABLE_HOLD_TIME
-  [@@uint8_t]
-]
-
-[%%cenum
-  type update_message_error_t =
-    | MALFORMED_ATTRIBUTE_LIST [@id 1]
-    | UNRECOGNIZED_WELLKNOWN_ATTRIBUTE
-    | MISSING_WELLKNOWN_ATTRIBUTE
-    | ATTRIBUTE_FLAGS_ERROR
-    | ATTRIBUTE_LENGTH_ERROR
-    | INVALID_ORIGIN_ATTRIBUTE
-    | INVALID_NEXT_HOP_ATTRIBUTE [@id 8]
-    | OPTIONAL_ATTRIBUTE_ERROR
-    | INVALID_NETWORK_FIELD
-    | MALFORMED_AS_PATH
-  [@@uint8_t]
-]
-
-[%%cenum
-  type error_t =
-    | MESSAGE_HEADER_ERROR [@id 1]
-    | OPEN_MESSAGE_ERROR
-    | UPDATE_MESSAGE_ERROR
-    | HOLD_TIMER_EXPIRED
-    | FINITE_STATE_MACHINE_ERROR
-    | CEASE
-  [@@uint8_t]
-]
-
-[%%cstruct
-  type err = {
-    ec: uint8_t;
-    sec: uint8_t;
-  }
-  [@@big_endian]
-]
 
 let parse_error p =
   match get_err_ec p |> int_to_error_t with
@@ -680,10 +521,11 @@ let parse_error p =
     Hold_timer_expired
   | Some FINITE_STATE_MACHINE_ERROR ->
     Finite_state_machine_error
-  | Some CEASE ->
-    Cease
-  | None -> raise (Notification_error Invalid_error_code)
+  | Some CEASE -> Cease
+  | None -> 
+    raise (Notification_error Invalid_error_code)
 ;;
+
 
 let error_to_string err =
   match err with
@@ -714,46 +556,47 @@ let error_to_string err =
     ) in sprintf "%s : %s" error suberror
   | Update_message_error sub ->
     let error = "Update message error" in
-    let suberror = (match sub with
-    | Malformed_attribute_list ->
-      "Malformed attribute list"
-    | Unrecognized_wellknown_attribute buf_attr ->
-      "Unrecognized wellknown attribute"
-    | Missing_wellknown_attribute attr ->
-      "Missing wellknown attribute"
-    | Attribute_flags_error buf_attr ->
-      "Attribute flags error"
-    | Attribute_length_error buf_attr ->
-      "Attribute length error"
-    | Invalid_origin_attribute buf_attr ->
-      "Invalid origin attribute"
-    | Invalid_next_hop_attribute buf_attr ->
-      "Invalid next hop attribute"
-    | Optional_attribute_error buf_attr ->
-      "Optioanl attribute error"
-    | Invalid_network_field ->
-      "Invalid network field"
-    | Malformed_as_path ->
-      "Malformed as path"
-    ) in sprintf "%s : %s" error suberror
+    let suberror = 
+      match sub with
+      | Malformed_attribute_list ->
+        "Malformed attribute list"
+      | Unrecognized_wellknown_attribute buf_attr ->
+        "Unrecognized wellknown attribute"
+      | Missing_wellknown_attribute attr ->
+        sprintf "Missing wellknown attribute %d" attr
+      | Attribute_flags_error buf_attr ->
+        "Attribute flags error"
+      | Attribute_length_error buf_attr ->
+        "Attribute length error"
+      | Invalid_origin_attribute buf_attr ->
+        "Invalid origin attribute"
+      | Invalid_next_hop_attribute buf_attr ->
+        "Invalid next hop attribute"
+      | Optional_attribute_error buf_attr ->
+        "Optioanl attribute error"
+      | Invalid_network_field ->
+        "Invalid network field"
+      | Malformed_as_path ->
+        "Malformed as path"
+    in 
+    sprintf "%s : %s" error suberror
   | Hold_timer_expired ->
     "Hold timer expired"
   | Finite_state_machine_error ->
     "Finite state machine error"
-  | Cease ->
-    "Cease"
+  | Cease -> "Cease"
 ;;
 
 type t =
-  | Open of opent
-  | Update of update
-  | Notification of error
-  | Keepalive
-;;
+| Open of opent
+| Update of update
+| Notification of error
+| Keepalive
+
 
 type msg_error =
-  | General of error
-  | Special of notification_error
+| General of error
+| Special of notification_error
 
 let to_string = function
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
@@ -847,11 +690,13 @@ let parse ?(caller=Normal) buf =
 let parse_buffer_to_t buf =
   try 
     match parse buf () with
-    | None -> assert false
-    | Some it -> Ok it
+    | None -> None
+    | Some it -> 
+      let len = get_h_len buf in
+      Some (Ok (it, len))
   with
-  | Msg_error err -> Error (General err)
-  | Notification_error err -> Error (Special err)
+  | Msg_error err -> Some (Error (General err))
+  | Notification_error err -> Some (Error (Special err))
 ;;
 
 
