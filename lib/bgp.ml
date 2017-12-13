@@ -702,7 +702,7 @@ let parse_buffer_to_t buf =
   with
   | Msg_error err -> Some (Error (General err))
   | Notification_error err -> Some (Error (Special err))
-  | _ -> Parser_log.err (fun m -> m "Parse error"); None
+  | Invalid_argument str -> Parser_log.err (fun m -> m "Parse error: %s" str); None
 ;;
 
 let fill_header_buffer buf len typ = 
