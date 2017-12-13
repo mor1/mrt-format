@@ -358,6 +358,7 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path of asp_segment list
+  | Local_pref of int
   | Unknown of int
 ;;
 
@@ -398,7 +399,7 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some AGGREGATOR -> Aggregator
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
-    | Some LOCAL_PREF
+    | Some LOCAL_PREF -> Local_pref 0
     | Some UNKNOWN -> failwith "This should not occur"
     | None ->
       (* printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p); *)
@@ -438,6 +439,7 @@ let rec path_attrs_to_string path_attrs =
     | Aggregator -> "AGGREGATOR; " ^ acc
     | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
     | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
+    | Local_pref p -> (sprintf "LOCAL_PREF %d" p) ^ acc
     | Unknown tc -> sprintf "Unknown attribute with tc %d" tc
   in
   List.fold_right f path_attrs ""
