@@ -57,6 +57,41 @@ let test_update =
     `Slow f 
 ;;
 
+let test_update_only_withdrawn =
+  let f () =
+    let withdrawn = 
+      [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 16); 
+        (Afi.IPv4 (ip4_of_ints 10 0 0 0), 8); 
+        (Afi.IPv4 (ip4_of_ints 172 16 84 0), 24);
+        ] 
+    in    
+    let u = Update {withdrawn; path_attrs=[]; nlri=[]} in
+    test_parse_gen_combo u
+  in
+  test_case 
+    "test_update_only_withdrawn"
+    `Slow f 
+;;
+
+let test_update_only_nlri =
+  let f () =
+    let nlri = [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 24)] in
+    let flags = {optional=false; transitive=false; partial=false; extlen=false} in
+    let path_attrs = [
+      flags, Origin IGP;
+      flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
+      flags, Next_hop (ip4_of_ints 192 168 1 253);
+    ] in 
+    let u = Update {withdrawn = []; path_attrs; nlri} in
+    test_parse_gen_combo u
+  in
+  test_case 
+    "test_update_only_nlri"
+    `Slow f
+;;
+
+
+
 let test_open =
   let f () =
     let o = {
@@ -109,7 +144,7 @@ let test_header_bad_length_error =
 let () =
   run "bgp" [
     "header", [test_header_sync_error; test_header_bad_length_error];
-    "update", [test_update];
+    "update", [test_update; test_update_only_nlri; test_update_only_withdrawn ];
     "open", [test_open];
     "keepalive", [test_keepalive];
     "notification", [test_notify]

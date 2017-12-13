@@ -30,6 +30,9 @@ include Bgp_cstruct
 
    MRT remains IMO, in random ways, a half-witted format. *)
 
+let parser_log = Logs.Src.create "Parser" ~doc:"Log for parser"
+module Parser_log = (val Logs.src_log parser_log : Logs.LOG)
+
 type caller = Normal | Table2 | Bgp4mp_as4
 
 let rec cstruct_iter_to_list iter =
@@ -400,7 +403,7 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
     | Some LOCAL_PREF -> Local_pref 0
-    | Some UNKNOWN -> failwith "This should not occur"
+    | Some UNKNOWN -> Unknown 0
     | None ->
       (* printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p); *)
       (* Cstruct.hexdump p; *)
@@ -699,8 +702,8 @@ let parse_buffer_to_t buf =
   with
   | Msg_error err -> Some (Error (General err))
   | Notification_error err -> Some (Error (Special err))
+  | _ -> Parser_log.err (fun m -> m "Parse error"); None
 ;;
-
 
 let fill_header_buffer buf len typ = 
   let marker, _ = Cstruct.split buf 16 in
