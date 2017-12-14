@@ -88,46 +88,49 @@ type open_message_error =
 
 
 type update_message_error =
-  | Malformed_attribute_list 
-  | Unrecognized_wellknown_attribute of Cstruct.t 
-  | Missing_wellknown_attribute of Cstruct.uint8
-  | Attribute_flags_error of Cstruct.t
-  | Attribute_length_error of Cstruct.t
-  | Invalid_origin_attribute of Cstruct.t
-  | Invalid_next_hop_attribute of Cstruct.t
-  | Optional_attribute_error of Cstruct.t
-  | Invalid_network_field
-  | Malformed_as_path
+| Malformed_attribute_list 
+| Unrecognized_wellknown_attribute of Cstruct.t 
+| Missing_wellknown_attribute of Cstruct.uint8
+| Attribute_flags_error of Cstruct.t
+| Attribute_length_error of Cstruct.t
+| Invalid_origin_attribute of Cstruct.t
+| Invalid_next_hop_attribute of Cstruct.t
+| Optional_attribute_error of Cstruct.t
+| Invalid_network_field
+| Malformed_as_path
 
 
-type error = 
-  | Message_header_error of message_header_error
-  | Open_message_error of open_message_error
-  | Update_message_error of update_message_error
-  | Hold_timer_expired
-  | Finite_state_machine_error
-  | Cease
+type msg_fmt_error = 
+| Message_header_error of message_header_error
+| Open_message_error of open_message_error
+| Update_message_error of update_message_error
+| Hold_timer_expired
+| Finite_state_machine_error
+| Cease
 
 
-type notification_error =
-  | Invalid_error_code
-  | Invalid_sub_error_code
-  | Bad_message_length_n
-  | Connection_not_synchroniszed_n
+type notif_fmt_error =
+| Invalid_error_code
+| Invalid_sub_error_code
+| Bad_message_length_n
+| Connection_not_synchroniszed_n
 
 
 type t =
-  | Open of opent
-  | Update of update
-  | Notification of error
-  | Keepalive
+| Open of opent
+| Update of update
+| Notification of msg_fmt_error
+| Keepalive
 
 
-type msg_error =
-  | General of error
-  | Special of notification_error
+type error =
+| Parsing_error
+| Msg_fmt_error of msg_fmt_error
+| Notif_fmt_error of notif_fmt_error
 
 val asn_to_string: asn -> string
+
+val get_h_len: Cstruct.t -> int
 
 val pfxlen_to_bytes : int -> int
 val get_nlri4 : Cstruct.t -> int -> Afi.prefix
@@ -143,11 +146,11 @@ val update_to_string : update -> string
 
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
-val parse_buffer_to_t : Cstruct.t -> (t * int, msg_error) Result.result option
+val parse_buffer_to_t : Cstruct.t -> (t, error) Result.result
 
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
-val gen_notification : error -> Cstruct.t
+val gen_notification : msg_fmt_error -> Cstruct.t
 val gen_msg : ?test:bool -> t -> Cstruct.t
 

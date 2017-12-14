@@ -18,9 +18,8 @@ let test_parse_gen_combo t =
   let msg1 = gen_msg t in
   let t2 = 
     match (parse_buffer_to_t msg1) with 
-    | Some (Error e) -> assert false 
-    | None -> assert false 
-    | Some (Ok (v, _)) -> v 
+    | Error e -> assert false 
+    | Ok (v, _) -> v 
   in
   let msg2 = gen_msg t2 in
   assert (Cstruct.equal msg1 msg2);
@@ -29,9 +28,8 @@ let test_parse_gen_combo t =
 
 let test_parse_exn buf wanted_err =
   parse_buffer_to_t buf |> function
-  | Some (Ok _) | None -> fail "This should give an exception."
-  | Some (Error e) -> 
-    if e = wanted_err then () else fail "Wrong exception type"
+  | Ok _ -> fail "This should give an exception."
+  | Error e -> if e = wanted_err then () else fail "Wrong exception type"
 ;;
 
 let test_update =
@@ -90,8 +88,6 @@ let test_update_only_nlri =
     `Slow f
 ;;
 
-
-
 let test_open =
   let f () =
     let o = {
@@ -124,7 +120,7 @@ let test_header_sync_error =
     let buf = Cstruct.create 19 in
     Cstruct.BE.set_uint16 buf 16 19;
     Cstruct.set_uint8 buf 18 4;
-    test_parse_exn buf (General (Message_header_error Connection_not_synchroniszed))
+    test_parse_exn buf (Msg_fmt_error (Message_header_error Connection_not_synchroniszed))
   in
   test_case "test error: connection_not_synchronized" `Slow f
 ;;
@@ -136,7 +132,7 @@ let test_header_bad_length_error =
     Cstruct.memset marker 0xff;
     Cstruct.BE.set_uint16 buf 16 19;
     Cstruct.set_uint8 buf 18 2;
-    test_parse_exn buf (General (Message_header_error (Bad_message_length 19)))
+    test_parse_exn buf (Msg_fmt_error (Message_header_error (Bad_message_length 19)))
   in
   test_case "test error: bad length" `Slow f
 ;;

@@ -230,24 +230,24 @@ type update_message_error =
   | Malformed_as_path
 ;;
 
-type error = 
-  | Message_header_error of message_header_error
-  | Open_message_error of open_message_error
-  | Update_message_error of update_message_error
-  | Hold_timer_expired
-  | Finite_state_machine_error
-  | Cease
-;;
+type msg_fmt_error = 
+| Message_header_error of message_header_error
+| Open_message_error of open_message_error
+| Update_message_error of update_message_error
+| Hold_timer_expired
+| Finite_state_machine_error
+| Cease
 
-type notification_error =
-  | Invalid_error_code
-  | Invalid_sub_error_code
-  | Bad_message_length_n
-  | Connection_not_synchroniszed_n
-;;
 
-exception Msg_error of error
-exception Notification_error of notification_error
+type notif_fmt_error =
+| Invalid_error_code
+| Invalid_sub_error_code
+| Bad_message_length_n
+| Connection_not_synchroniszed_n
+
+
+exception Msg_fmt_err of msg_fmt_error
+exception Notif_fmt_err of notif_fmt_error
 
 type asp_segment = 
   | Set of int32 list 
@@ -266,7 +266,7 @@ let parse_as4path buf =
     in
     match int_to_aspt t with
     | None -> 
-      raise (Msg_error (Update_message_error Malformed_as_path))
+      raise (Msg_fmt_err (Update_message_error Malformed_as_path))
     | Some AS_SET -> Set (cstruct_iter_to_list vs)
     | Some AS_SEQ -> Seq (cstruct_iter_to_list vs)
   in
@@ -304,7 +304,7 @@ let parse_aspath buf =
     in
     match int_to_aspt t with
     | None -> 
-      raise (Msg_error (Update_message_error Malformed_as_path))
+      raise (Msg_fmt_err (Update_message_error Malformed_as_path))
     | Some AS_SET -> Set (cstruct_iter_to_list vs)
     | Some AS_SEQ -> Seq (cstruct_iter_to_list vs)
   in
@@ -387,7 +387,7 @@ let parse_path_attrs ?(caller=Normal) buf =
       | Some v -> Origin v 
       | None -> 
         let b = Cstruct.shift buf 1 in
-        raise (Msg_error (Update_message_error (Invalid_origin_attribute b)))
+        raise (Msg_fmt_err (Update_message_error (Invalid_origin_attribute b)))
       )
     | Some AS_PATH -> (match caller with
         | Normal -> As_path (parse_aspath p)
@@ -474,7 +474,7 @@ let parse_error p =
     | Some BAD_MESSAGE_TYPE ->
       let bad_type = Cstruct.get_uint8 p 2 in
       Bad_message_type bad_type
-    | None -> raise (Notification_error Invalid_sub_error_code)
+    | None -> raise (Notif_fmt_err Invalid_sub_error_code)
     in Message_header_error suberror
   | Some OPEN_MESSAGE_ERROR ->
     let suberror = match get_err_sec p |> int_to_open_message_error_t with
@@ -490,7 +490,7 @@ let parse_error p =
       Unsupported_optional_parameter
     | Some UNACCEPTABLE_HOLD_TIME ->
       Unacceptable_hold_time
-    | None -> raise (Notification_error Invalid_sub_error_code)
+    | None -> raise (Notif_fmt_err Invalid_sub_error_code)
     in Open_message_error suberror
   | Some UPDATE_MESSAGE_ERROR ->
     let suberror = match get_err_sec p |> int_to_update_message_error_t with
@@ -520,7 +520,7 @@ let parse_error p =
       Invalid_network_field
     | Some MALFORMED_AS_PATH ->
       Malformed_as_path
-    | None -> raise (Notification_error Invalid_sub_error_code)
+    | None -> raise (Notif_fmt_err Invalid_sub_error_code)
     in Update_message_error suberror
   | Some HOLD_TIMER_EXPIRED ->
     Hold_timer_expired
@@ -528,7 +528,7 @@ let parse_error p =
     Finite_state_machine_error
   | Some CEASE -> Cease
   | None -> 
-    raise (Notification_error Invalid_error_code)
+    raise (Notif_fmt_err Invalid_error_code)
 ;;
 
 
@@ -595,13 +595,13 @@ let error_to_string err =
 type t =
 | Open of opent
 | Update of update
-| Notification of error
+| Notification of msg_fmt_error
 | Keepalive
 
-
-type msg_error =
-| General of error
-| Special of notification_error
+type error =
+| Parsing_error
+| Msg_fmt_error of msg_fmt_error
+| Notif_fmt_error of notif_fmt_error
 
 let to_string = function
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
@@ -621,30 +621,30 @@ let default_marker =
 let parse ?(caller=Normal) buf =
   let lenf buf = Some (get_h_len buf) in
   let pf buf =
-    let h, p = Cstruct.split buf sizeof_h in
-    let len = get_h_len h in
-    let tc_opt = get_h_typ h |> int_to_tc in
+    let header, payload = Cstruct.split buf sizeof_h in
+    let msg_len = get_h_len header in
+    let tc_opt = get_h_typ header |> int_to_tc in
     
-    if not (Cstruct.equal (get_h_marker h) default_marker) then
+    if not (Cstruct.equal (get_h_marker header) default_marker) then
       (match tc_opt with
       | Some NOTIFICATION -> 
-        raise (Notification_error Connection_not_synchroniszed_n)
+        raise (Notif_fmt_err Connection_not_synchroniszed_n)
       | _ -> 
-        raise (Msg_error (Message_header_error Connection_not_synchroniszed))
+        raise (Msg_fmt_err (Message_header_error Connection_not_synchroniszed))
       );
     
-    if (len < 19 || len > 4096) then
-      raise (Msg_error (Message_header_error (Bad_message_length len)));    
+    if (msg_len < 19 || msg_len > 4096) then
+      raise (Msg_fmt_err (Message_header_error (Bad_message_length msg_len)));    
 
     (* Parse payload *)
     match tc_opt with
     | None -> 
-      raise (Msg_error (Message_header_error (Bad_message_type (get_h_typ h))))
+      raise (Msg_fmt_err (Message_header_error (Bad_message_type (get_h_typ header))))
     | Some OPEN ->
-      if (len < 29) then
-        raise (Msg_error (Message_header_error (Bad_message_length len)));
-      let opt_len = get_opent_opt_len p in
-      let m, opts = Cstruct.split p (len - sizeof_h - opt_len) in
+      if (msg_len < 29) then
+        raise (Msg_fmt_err (Message_header_error (Bad_message_length msg_len)));
+      let opt_len = get_opent_opt_len payload in
+      let m, opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
       let opts =
         let rec aux len acc bs =
           if opt_len = opt_len then acc else (
@@ -667,11 +667,11 @@ let parse ?(caller=Normal) buf =
              options = opts;
            }
     | Some UPDATE ->
-      if (len < 23) then
-        raise (Msg_error (Message_header_error (Bad_message_length len)));
+      if (msg_len < 23) then
+        raise (Msg_fmt_err (Message_header_error (Bad_message_length msg_len)));
       let withdrawn, bs =
-        let wl = Cstruct.BE.get_uint16 p 0 in
-        Cstruct.split ~start:2 p wl
+        let wl = Cstruct.BE.get_uint16 payload 0 in
+        Cstruct.split ~start:2 payload wl
       in
       let path_attrs, nlri =
         let pl = Cstruct.BE.get_uint16 bs 0 in
@@ -683,9 +683,9 @@ let parse ?(caller=Normal) buf =
         nlri = parse_nlris nlri;
       }
     | Some NOTIFICATION -> 
-      if (len < 21) then
-        raise (Notification_error Bad_message_length_n);
-      let error = parse_error p in
+      if (msg_len < 21) then
+        raise (Notif_fmt_err Bad_message_length_n);
+      let error = parse_error payload in
       Notification error
     | Some KEEPALIVE -> Keepalive
   in
@@ -695,14 +695,14 @@ let parse ?(caller=Normal) buf =
 let parse_buffer_to_t buf =
   try 
     match parse buf () with
-    | None -> None
-    | Some it -> 
-      let len = get_h_len buf in
-      Some (Ok (it, len))
+    | None -> 
+      Parser_log.err (fun m -> m "This is a marker. Something unexpected occurs in Bgp.parse_buffer_to_t."); 
+      assert false
+    | Some it -> Ok it 
   with
-  | Msg_error err -> Some (Error (General err))
-  | Notification_error err -> Some (Error (Special err))
-  | Invalid_argument str -> Parser_log.err (fun m -> m "Parse error: %s" str); None
+  | Msg_fmt_err err -> Error (Msg_fmt_error err)
+  | Notif_fmt_err err -> Error (Notif_fmt_error err)
+  | Invalid_argument str -> Error Parsing_error
 ;;
 
 let fill_header_buffer buf len typ = 
@@ -712,7 +712,6 @@ let fill_header_buffer buf len typ =
   set_h_typ buf (tc_to_int typ);
   sizeof_h
 ;;
-
 
 let fill_open_buffer buf (o: opent) =
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
