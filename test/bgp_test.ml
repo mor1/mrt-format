@@ -19,7 +19,7 @@ let test_parse_gen_combo t =
   let t2 = 
     match (parse_buffer_to_t msg1) with 
     | Error e -> assert false 
-    | Ok (v, _) -> v 
+    | Ok v -> v 
   in
   let msg2 = gen_msg t2 in
   assert (Cstruct.equal msg1 msg2);
@@ -137,15 +137,54 @@ let test_header_bad_length_error =
   test_case "test error: bad length" `Slow f
 ;;
 
+let test_len_pfxs_buffer () = 
+  let pfxs = [
+    (Afi.IPv4 (ip4_of_ints 10 0 0 0), 8);
+    (Afi.IPv4 (ip4_of_ints 66 173 0 0), 16);
+    (Afi.IPv4 (ip4_of_ints 172 168 13 0), 24);
+  ] in
+  assert (len_pfxs_buffer pfxs = 9)
+;;
+
+let test_len_path_attrs_buffer () = 
+  let flags = {optional=false; transitive=false; partial=false; extlen=false} in
+  let path_attrs = [
+    flags, Origin IGP;
+    flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
+    flags, Next_hop (ip4_of_ints 192 168 1 253);
+  ] in 
+  assert (len_path_attrs_buffer path_attrs = 4 + 19 + 7)
+;;
+
+let test_len_update_buffer () =
+  let nlri = [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 24)] in
+  let flags = {optional=false; transitive=false; partial=false; extlen=false} in
+  let path_attrs = [
+    flags, Origin IGP;
+    flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
+    flags, Next_hop (ip4_of_ints 192 168 1 253);
+  ] in 
+  let u = {withdrawn = []; path_attrs; nlri} in
+  assert (len_update_buffer u = 23 + len_path_attrs_buffer path_attrs + len_pfxs_buffer nlri)
+;;
+
+
 let () =
   run "bgp" [
     "header", [test_header_sync_error; test_header_bad_length_error];
     "update", [test_update; test_update_only_nlri; test_update_only_withdrawn ];
     "open", [test_open];
     "keepalive", [test_keepalive];
-    "notification", [test_notify]
+    "notification", [test_notify];
+    "len", [
+      test_case "test len pfxs buffer" `Slow test_len_pfxs_buffer;
+      test_case "test len path attrs buffer" `Slow test_len_path_attrs_buffer;
+      test_case "test len update buffer" `Slow test_len_update_buffer;
+    ]
   ]
 ;;
+
+
 
 
 

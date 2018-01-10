@@ -14,17 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type asn = Asn of int | Asn4 of int32
+type asn = 
+| Asn of int 
+| Asn4 of int32
 
 type capability =
-  | Mp_ext of Afi.tc * Safi.tc
-  | Ecapability of Cstruct.t
+| Mp_ext of Afi.tc * Safi.tc
+| Ecapability of Cstruct.t
 
 type opt_param =
-  | Reserved (* wtf? *)
-  | Authentication (* deprecated, rfc 4271 *)
-  | Capability of capability
-;;
+| Reserved (* wtf? *)
+| Authentication (* deprecated, rfc 4271 *)
+| Capability of capability
 
 type opent = {
   version: int;
@@ -32,14 +33,14 @@ type opent = {
   hold_time: int;
   bgp_id: int32;
   options: opt_param list;
-};;
+}
 
 type origin = IGP | EGP | INCOMPLETE
 
 type asp_segment = 
-  | Set of int32 list 
-  | Seq of int32 list
-;;
+| Set of int32 list 
+| Seq of int32 list
+
 
 type path_attr_flags = {
   optional: bool;
@@ -153,4 +154,8 @@ val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
 val gen_notification : msg_fmt_error -> Cstruct.t
 val gen_msg : ?test:bool -> t -> Cstruct.t
+
+val len_pfxs_buffer : Afi.prefix list -> int
+val len_path_attrs_buffer : path_attrs -> int
+val len_update_buffer : update -> int
 

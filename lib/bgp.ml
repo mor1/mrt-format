@@ -705,6 +705,8 @@ let parse_buffer_to_t buf =
   | Invalid_argument str -> Error Parsing_error
 ;;
 
+let len_header_buffer = sizeof_h
+
 let fill_header_buffer buf len typ = 
   let marker, _ = Cstruct.split buf 16 in
   Cstruct.memset marker 0x00ff; 
@@ -713,10 +715,12 @@ let fill_header_buffer buf len typ =
   sizeof_h
 ;;
 
+let len_open_buffer (o: opent) = sizeof_h + sizeof_opent
+
 let fill_open_buffer buf (o: opent) =
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
   let buf_opent, buf_opt = Cstruct.split buf_p sizeof_opent in
-  let _  = fill_header_buffer buf_h (sizeof_h + sizeof_opent) OPEN in
+  let _ = fill_header_buffer buf_h (sizeof_h + sizeof_opent) OPEN in
   set_opent_version buf_opent o.version;
   set_opent_my_as buf_opent (asn_to_int o.my_as);
   set_opent_hold_time buf_opent o.hold_time;
@@ -769,12 +773,15 @@ let fill_pfxs_buffer buf pfxs =
         done;
         for i = 9 to num_b do
           Cstruct.set_uint8 buf_this i (Int64.to_int (lo >>>> (128 - i * 8) &&&& 0x00ff_L))
-        done);
+        done
+    );
     total_len + num_b + 1
   in
   (* return remaining buffer *)
   List.fold_left f 0 pfxs
 ;;
+
+let len_attr_ft_buffer = sizeof_ft
 
 let fill_attr_ft_buffer buf flags tc len =
   set_ft_flags buf (attr_flags_to_int flags);
@@ -783,11 +790,25 @@ let fill_attr_ft_buffer buf flags tc len =
   sizeof_ft
 ;;
 
+let len_attr_fte_buffer = sizeof_fte
+
 let fill_attr_fte_buffer buf flags tc len =
   set_fte_flags buf (attr_flags_to_int flags);
   set_fte_tc buf (attr_t_to_int tc);
   set_fte_len buf len;
   sizeof_fte
+;;
+
+let len_attr_as_path_data_buffer ?(sizeof_asn=2) asp =
+  let f total_len segment = 
+    let set_or_seq, asn_list = 
+      match segment with 
+      | Set v -> (1, v) 
+      | Seq v -> (2, v) 
+    in
+    total_len + 2 + sizeof_asn * (List.length asn_list)
+  in
+  List.fold_left f 0 asp
 ;;
 
 let fill_attr_as_path_data_buffer ?(sizeof_asn=2) buf asp =
@@ -816,7 +837,39 @@ let fill_attr_as_path_data_buffer ?(sizeof_asn=2) buf asp =
 let gen_attr_as_path_data_buffer asp =
   let buf = Cstruct.create 4096 in
   let len = fill_attr_as_path_data_buffer buf asp in
-  let ret, _ = Cstruct.split buf len in ret
+  let ret, _ = Cstruct.split buf len in 
+  ret
+;;
+
+let len_path_attrs_buffer path_attrs = 
+  let f total_len (flags, path_attr) =
+    let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+    
+    let len_p, attr_t, new_flags = 
+      match path_attr with
+      | Origin origin -> 
+        1, ORIGIN, flags
+      | As_path asp ->
+        let len_p = len_attr_as_path_data_buffer asp in
+        len_p, AS_PATH, flags
+      | Next_hop ip4 -> 
+        4, NEXT_HOP, flags
+      | As4_path asp ->
+        let new_flags = {
+          optional=true;
+          transitive=flags.transitive;
+          partial=flags.partial;
+          extlen=flags.extlen;
+        } in
+        let len_p = len_attr_as_path_data_buffer ~sizeof_asn:4 asp in
+        len_p, AS4_PATH, new_flags
+      | _ -> 0, UNKNOWN, flags
+    in
+    
+    if attr_t != UNKNOWN then total_len + len_h + len_p else total_len
+  in
+  List.fold_left f 0 path_attrs
+;;
 
 let fill_path_attrs_buffer buf path_attrs =
   let f total_len (flags, path_attr) =
@@ -860,6 +913,13 @@ let fill_path_attrs_buffer buf path_attrs =
   List.fold_left f 0 path_attrs
 ;;
 
+let len_update_buffer { withdrawn; path_attrs; nlri } = 
+  let len_wd = len_pfxs_buffer withdrawn in
+  let len_pa = len_path_attrs_buffer path_attrs in
+  let len_nlri = len_pfxs_buffer nlri in
+  sizeof_h + len_wd + len_pa + len_nlri + 4
+;;
+
 let fill_update_buffer buf { withdrawn; path_attrs; nlri } = 
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
   let buf_len_wd, buf_wd_rest = Cstruct.split buf_p 2 in 
@@ -875,10 +935,11 @@ let fill_update_buffer buf { withdrawn; path_attrs; nlri } =
   sizeof_h + len_wd + len_pa + len_nlri + 4
 ;;
 
-let gen_update u =
+let gen_update ({ withdrawn; path_attrs; nlri } as u) =
   let buf = Cstruct.create 4096 in
   let len = fill_update_buffer buf u in
-  let ret, _ = Cstruct.split buf len in ret
+  let ret, _ = Cstruct.split buf len in 
+  ret
 ;;
   
 let fill_notification_buffer buf e =
