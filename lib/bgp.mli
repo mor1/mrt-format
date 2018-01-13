@@ -15,44 +15,43 @@
  *)
 
 type asn = 
-| Asn of int 
-| Asn4 of int32
+  | Asn of int
+  | Asn4 of int32
 
 type capability =
-| Mp_ext of Afi.tc * Safi.tc
-| Ecapability of Cstruct.t
+  | Mp_ext of Afi.tc * Safi.tc
+  | Ecapability of Cstruct.t
 
 type opt_param =
-| Reserved (* wtf? *)
-| Authentication (* deprecated, rfc 4271 *)
-| Capability of capability
+  | Reserved (* wtf? *)
+  | Authentication (* deprecated, rfc 4271 *)
+  | Capability of capability
 
 type opent = {
   version: int;
-  my_as: asn;
+  local_asn: int32;
   hold_time: int;
-  bgp_id: int32;
+  local_id: Ipaddr.V4.t;
   options: opt_param list;
 }
 
 type origin = IGP | EGP | INCOMPLETE
 
 type asp_segment = 
-| Set of int32 list 
-| Seq of int32 list
-
+  | Asn_set of int32 list 
+  | Asn_seq of int32 list
 
 type path_attr_flags = {
   optional: bool;
   transitive: bool;
   partial: bool;
   extlen: bool;
-};;
+}
 
 type path_attr =
   | Origin of origin
   | As_path of asp_segment list
-  | Next_hop of Afi.ip4
+  | Next_hop of Ipaddr.V4.t
   | Community of int32
   | Ext_communities
   | Med of int32
@@ -63,14 +62,29 @@ type path_attr =
   | As4_path of asp_segment list
   | Local_pref of int
   | Unknown of int
-;;
+
+
+(* type path_attr_t = 
+  | UNKNOWN
+  | ORIGIN
+  | AS_PATH
+  | NEXT_HOP
+  | MED
+  | LOCAL_PREF
+  | ATOMIC_AGGR
+  | AGGREGATOR
+  | COMMUNITY
+  | MP_REACH_NLRI
+  | MP_UNREACH_NLRI
+  | EXT_COMMUNITIES
+  | AS4_PATH *)
 
 type path_attrs = (path_attr_flags * path_attr) list
 
 type update = {
-  withdrawn: Afi.prefix list;
+  withdrawn: Ipaddr.V4.Prefix.t list;
   path_attrs: path_attrs;
-  nlri: Afi.prefix list;
+  nlri: Ipaddr.V4.Prefix.t list;
 }
 
 type message_header_error =
@@ -89,50 +103,47 @@ type open_message_error =
 
 
 type update_message_error =
-| Malformed_attribute_list 
-| Unrecognized_wellknown_attribute of Cstruct.t 
-| Missing_wellknown_attribute of Cstruct.uint8
-| Attribute_flags_error of Cstruct.t
-| Attribute_length_error of Cstruct.t
-| Invalid_origin_attribute of Cstruct.t
-| Invalid_next_hop_attribute of Cstruct.t
-| Optional_attribute_error of Cstruct.t
-| Invalid_network_field
-| Malformed_as_path
+  | Malformed_attribute_list 
+  | Unrecognized_wellknown_attribute of Cstruct.t 
+  | Missing_wellknown_attribute of Cstruct.uint8
+  | Attribute_flags_error of Cstruct.t
+  | Attribute_length_error of Cstruct.t
+  | Invalid_origin_attribute of Cstruct.t
+  | Invalid_next_hop_attribute of Cstruct.t
+  | Optional_attribute_error of Cstruct.t
+  | Invalid_network_field
+  | Malformed_as_path
 
 
 type msg_fmt_error = 
-| Message_header_error of message_header_error
-| Open_message_error of open_message_error
-| Update_message_error of update_message_error
-| Hold_timer_expired
-| Finite_state_machine_error
-| Cease
+  | Message_header_error of message_header_error
+  | Open_message_error of open_message_error
+  | Update_message_error of update_message_error
+  | Hold_timer_expired
+  | Finite_state_machine_error
+  | Cease
 
 
 type notif_fmt_error =
-| Invalid_error_code
-| Invalid_sub_error_code
-| Bad_message_length_n
-| Connection_not_synchroniszed_n
+  | Invalid_error_code
+  | Invalid_sub_error_code
+  | Bad_message_length_n
+  | Connection_not_synchroniszed_n
 
 
 type t =
-| Open of opent
-| Update of update
-| Notification of msg_fmt_error
-| Keepalive
+  | Open of opent
+  | Update of update
+  | Notification of msg_fmt_error
+  | Keepalive
 
 
 type error =
-| Parsing_error
-| Msg_fmt_error of msg_fmt_error
-| Notif_fmt_error of notif_fmt_error
+  | Parsing_error
+  | Msg_fmt_error of msg_fmt_error
+  | Notif_fmt_error of notif_fmt_error
 
 val asn_to_string: asn -> string
-
-val get_h_len: Cstruct.t -> int
-
 val pfxlen_to_bytes : int -> int
 val get_nlri4 : Cstruct.t -> int -> Afi.prefix
 val get_nlri6 : Cstruct.t -> int -> Afi.prefix
@@ -147,15 +158,17 @@ val update_to_string : update -> string
 
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
+
+val get_msg_len: Cstruct.t -> int
 val parse_buffer_to_t : Cstruct.t -> (t, error) Result.result
 
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
 val gen_notification : msg_fmt_error -> Cstruct.t
-val gen_msg : ?test:bool -> t -> Cstruct.t
+val gen_msg : t -> Cstruct.t
 
-val len_pfxs_buffer : Afi.prefix list -> int
+val len_pfxs_buffer : Ipaddr.V4.Prefix.t list -> int
 val len_path_attrs_buffer : path_attrs -> int
 val len_update_buffer : update -> int
 

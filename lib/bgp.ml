@@ -137,11 +137,26 @@ let get_partial buf =
 
 let parse_nlris buf =
   let lenf buf = Some (1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0))) in
+  
+  let get_nlri4 buf off =
+    Cstruct.(
+      let v = ref 0l in
+      let mask = get_uint8 buf off in
+      let bytes = pfxlen_to_bytes mask in
+      for i = 0 to bytes-1 do
+        v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf (off+i+1)))
+      done;
+      Ipaddr.V4.Prefix.make mask (Ipaddr.V4.of_int32 (!v <<< (8 * (4 - bytes))))
+    )
+  in
+
   let pf buf =
-    if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then
+    (* This could be a bug. What if the mask of ip6 address is less than 32? *)
+    if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then 
       get_nlri4 buf 0
-    else
-      get_nlri6 buf 0
+    else 
+      (* Currently, I don't want to support IPv6. So I return a dummy prefix instead *)
+      Ipaddr.V4.Prefix.make 0 (Ipaddr.V4.of_int32 0_l)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 ;;
@@ -175,7 +190,7 @@ type opt_param =
   | Reserved (* wtf? *)
   | Authentication (* deprecated, rfc 4271 *)
   | Capability of capability
-;;
+
 
 let opt_param_to_string = function
   | Reserved -> "RESERVED"
@@ -185,16 +200,18 @@ let opt_param_to_string = function
 
 type opent = {
   version: int;
-  my_as: asn;
+  local_asn: int32;
   hold_time: int;
-  bgp_id: int32;
+  local_id: Ipaddr.V4.t;
   options: opt_param list;
 }
 
 let opent_to_string o =
   sprintf "version:%d, my_as:%s, hold_time:%d, bgp_id:%s, options:[%s]"
-    o.version (asn_to_string o.my_as) o.hold_time (Ipaddr.V4.to_string (Ipaddr.V4.of_int32 o.bgp_id))
-    (o.options ||> opt_param_to_string |> String.concat "; ")
+          o.version (Int32.to_string o.local_asn) o.hold_time 
+          (Ipaddr.V4.to_string o.local_id)
+          (o.options ||> opt_param_to_string |> String.concat "; ")
+;;
 
 let is_optional f = is_bit 7 f
 let is_transitive f = is_bit 6 f
@@ -215,7 +232,7 @@ type open_message_error =
   | Bad_bgp_identifier
   | Unsupported_optional_parameter
   | Unacceptable_hold_time
-;;
+
 
 type update_message_error =
   | Malformed_attribute_list 
@@ -228,31 +245,30 @@ type update_message_error =
   | Optional_attribute_error of Cstruct.t
   | Invalid_network_field
   | Malformed_as_path
-;;
+
 
 type msg_fmt_error = 
-| Message_header_error of message_header_error
-| Open_message_error of open_message_error
-| Update_message_error of update_message_error
-| Hold_timer_expired
-| Finite_state_machine_error
-| Cease
+  | Message_header_error of message_header_error
+  | Open_message_error of open_message_error
+  | Update_message_error of update_message_error
+  | Hold_timer_expired
+  | Finite_state_machine_error
+  | Cease
 
 
 type notif_fmt_error =
-| Invalid_error_code
-| Invalid_sub_error_code
-| Bad_message_length_n
-| Connection_not_synchroniszed_n
+  | Invalid_error_code
+  | Invalid_sub_error_code
+  | Bad_message_length_n
+  | Connection_not_synchroniszed_n
 
 
 exception Msg_fmt_err of msg_fmt_error
 exception Notif_fmt_err of notif_fmt_error
 
 type asp_segment = 
-  | Set of int32 list 
-  | Seq of int32 list
-;;
+  | Asn_set of int32 list 
+  | Asn_seq of int32 list
 
 let parse_as4path buf =
   let lenf buf = Some (sizeof_asp + get_asp_n buf*4) in
@@ -267,8 +283,8 @@ let parse_as4path buf =
     match int_to_aspt t with
     | None -> 
       raise (Msg_fmt_err (Update_message_error Malformed_as_path))
-    | Some AS_SET -> Set (cstruct_iter_to_list vs)
-    | Some AS_SEQ -> Seq (cstruct_iter_to_list vs)
+    | Some AS_SET -> Asn_set (cstruct_iter_to_list vs)
+    | Some AS_SEQ -> Asn_seq (cstruct_iter_to_list vs)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 
@@ -284,8 +300,8 @@ let asp_segments_to_string asp_segments =
     in
     let s = 
       match segment with 
-      | Set asn_list -> sprintf "[%s])" (set_to_string asn_list)
-      | Seq asn_list -> sprintf "%s" (seq_to_string asn_list)
+      | Asn_set asn_list -> sprintf "[%s])" (set_to_string asn_list)
+      | Asn_seq asn_list -> sprintf "%s" (seq_to_string asn_list)
     in
     sprintf "%s <- %s" s acc
   in
@@ -305,8 +321,8 @@ let parse_aspath buf =
     match int_to_aspt t with
     | None -> 
       raise (Msg_fmt_err (Update_message_error Malformed_as_path))
-    | Some AS_SET -> Set (cstruct_iter_to_list vs)
-    | Some AS_SEQ -> Seq (cstruct_iter_to_list vs)
+    | Some AS_SET -> Asn_set (cstruct_iter_to_list vs)
+    | Some AS_SEQ -> Asn_seq (cstruct_iter_to_list vs)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 ;;
@@ -316,7 +332,7 @@ type path_attr_flags = {
   transitive: bool;
   partial: bool;
   extlen: bool;
-};;
+}
 
 let set_bit n pos b =
   if (n > 255) then raise (Failure "Invalid argument: n is too large.")
@@ -352,7 +368,7 @@ let int_to_attr_flags n = {
 type path_attr =
   | Origin of origin
   | As_path of asp_segment list
-  | Next_hop of Afi.ip4
+  | Next_hop of Ipaddr.V4.t
   | Community of int32
   | Ext_communities
   | Med of int32
@@ -363,7 +379,6 @@ type path_attr =
   | As4_path of asp_segment list
   | Local_pref of int
   | Unknown of int
-;;
 
 type path_attrs = (path_attr_flags * path_attr) list;;
 
@@ -394,7 +409,7 @@ let parse_path_attrs ?(caller=Normal) buf =
         | Table2 | Bgp4mp_as4 -> As4_path (parse_as4path p)
       )
     | Some AS4_PATH -> As4_path (parse_as4path p)
-    | Some NEXT_HOP -> Next_hop (Cstruct.BE.get_uint32 p 0)
+    | Some NEXT_HOP -> Next_hop (Ipaddr.V4.of_int32 (Cstruct.BE.get_uint32 p 0))
     | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
     | Some EXT_COMMUNITIES -> Ext_communities
     | Some MED -> Med (Cstruct.BE.get_uint32 p 0)
@@ -414,10 +429,11 @@ let parse_path_attrs ?(caller=Normal) buf =
 ;;
 
 type update = {
-  withdrawn: Afi.prefix list;
+  withdrawn: Ipaddr.V4.Prefix.t list;
   path_attrs: path_attrs;
-  nlri: Afi.prefix list;
-};;
+  nlri: Ipaddr.V4.Prefix.t list;
+}
+
 
 let rec path_attrs_to_string path_attrs = 
   let f (_, path_attr) acc =
@@ -432,7 +448,7 @@ let rec path_attrs_to_string path_attrs =
         (asp_segments_to_string v) acc
     | Next_hop v ->
       sprintf "NEXT_HOP(%s); %s"
-        (Afi.ip4_to_string v) acc
+        (Ipaddr.V4.to_string v) acc
     | Community v ->
       sprintf "COMMUNITY(%ld:%ld); %s"
         (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) acc
@@ -450,7 +466,7 @@ let rec path_attrs_to_string path_attrs =
 
 
 let rec nlris_to_string l_pfx = 
-  let f pfx acc = (Afi.prefix_to_string pfx) ^ "; " ^ acc in
+  let f pfx acc = (Ipaddr.V4.Prefix.to_string pfx) ^ "; " ^ acc in
   List.fold_right f l_pfx ""
 ;;
 
@@ -593,15 +609,15 @@ let error_to_string err =
 ;;
 
 type t =
-| Open of opent
-| Update of update
-| Notification of msg_fmt_error
-| Keepalive
+  | Open of opent
+  | Update of update
+  | Notification of msg_fmt_error
+  | Keepalive
 
 type error =
-| Parsing_error
-| Msg_fmt_error of msg_fmt_error
-| Notif_fmt_error of notif_fmt_error
+  | Parsing_error
+  | Msg_fmt_error of msg_fmt_error
+  | Notif_fmt_error of notif_fmt_error
 
 let to_string = function
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
@@ -660,10 +676,11 @@ let parse ?(caller=Normal) buf =
           )
         in aux 0 [] opts
       in
-      Open { version = get_opent_version m;
-             my_as = Asn (get_opent_my_as m);
+      Open { 
+             version = get_opent_version m;
+             local_asn = Int32.of_int (get_opent_local_asn m);
              hold_time = get_opent_hold_time m;
-             bgp_id = get_opent_bgp_id m;
+             local_id = Ipaddr.V4.of_int32 (get_opent_local_id m);
              options = opts;
            }
     | Some UPDATE ->
@@ -722,9 +739,9 @@ let fill_open_buffer buf (o: opent) =
   let buf_opent, buf_opt = Cstruct.split buf_p sizeof_opent in
   let _ = fill_header_buffer buf_h (sizeof_h + sizeof_opent) OPEN in
   set_opent_version buf_opent o.version;
-  set_opent_my_as buf_opent (asn_to_int o.my_as);
+  set_opent_local_asn buf_opent (Int32.to_int o.local_asn);
   set_opent_hold_time buf_opent o.hold_time;
-  set_opent_bgp_id buf_opent o.bgp_id;
+  set_opent_local_id buf_opent (Ipaddr.V4.to_int32 o.local_id);
   set_opent_opt_len buf_opent 0;
   sizeof_h + sizeof_opent
 ;;
@@ -745,39 +762,32 @@ let gen_keepalive () =
 ;;
   
 let len_pfxs_buffer pfxs =
-  let f (_, mask) = 
-    let num_b = pfxlen_to_bytes mask in
+  let f prefix = 
+    let num_b = pfxlen_to_bytes (Ipaddr.V4.Prefix.bits prefix) in
     num_b + 1
   in 
-    List.fold_left (+) 0 (List.map f pfxs)
+  List.fold_left (+) 0 (List.map f pfxs)
 ;;
 
 let fill_pfxs_buffer buf pfxs =
-  let f total_len (ip, mask) =
+  let f total_len pfx =
+    let mask = Ipaddr.V4.Prefix.bits pfx in
+    let ip = Ipaddr.V4.Prefix.network pfx in
+
+    (* Set mask *)
     let num_b = pfxlen_to_bytes mask in
     let _, buf_this = Cstruct.split buf total_len in
     Cstruct.set_uint8 buf_this 0 mask;
-    (match ip with
-    | Afi.IPv4 ip4 ->
-      for i = 1 to num_b do
-        Cstruct.set_uint8 buf_this i (Int32.to_int (ip4 >>> (32 - i * 8) &&& 0x00ff_l))
-      done
-    | Afi.IPv6 (hi, lo) ->
-      if (num_b <= 8) then 
-        for i = 1 to num_b do
-          Cstruct.set_uint8 buf_this i (Int64.to_int (hi >>>> (64 - i * 8) &&&& 0x00ff_L))
-        done
-      else
-        for i = 1 to 8 do
-          Cstruct.set_uint8 buf_this i (Int64.to_int (hi >>>> (64 - i * 8) &&&& 0x00ff_L))
-        done;
-        for i = 9 to num_b do
-          Cstruct.set_uint8 buf_this i (Int64.to_int (lo >>>> (128 - i * 8) &&&& 0x00ff_L))
-        done
-    );
+    
+    (* Fill in address *)
+    let ip4 = Ipaddr.V4.to_int32 ip in
+    for i = 1 to num_b do
+      Cstruct.set_uint8 buf_this i (Int32.to_int (ip4 >>> (32 - i * 8) &&& 0x00ff_l))
+    done;
+
     total_len + num_b + 1
   in
-  (* return remaining buffer *)
+  (* return length of used buffer *)
   List.fold_left f 0 pfxs
 ;;
 
@@ -803,8 +813,8 @@ let len_attr_as_path_data_buffer ?(sizeof_asn=2) asp =
   let f total_len segment = 
     let set_or_seq, asn_list = 
       match segment with 
-      | Set v -> (1, v) 
-      | Seq v -> (2, v) 
+      | Asn_set v -> (1, v) 
+      | Asn_seq v -> (2, v) 
     in
     total_len + 2 + sizeof_asn * (List.length asn_list)
   in
@@ -814,7 +824,9 @@ let len_attr_as_path_data_buffer ?(sizeof_asn=2) asp =
 let fill_attr_as_path_data_buffer ?(sizeof_asn=2) buf asp =
   let f total_len segment = 
     let set_or_seq, asn_list = 
-      match segment with Set v -> (1, v) | Seq v -> (2, v) 
+      match segment with 
+      | Asn_set v -> (1, v) 
+      | Asn_seq v -> (2, v) 
     in
     let buf_slice = Cstruct.shift buf total_len in
     
@@ -886,8 +898,7 @@ let fill_path_attrs_buffer buf path_attrs =
         let len_p = fill_attr_as_path_data_buffer buf_p asp in
         len_p, AS_PATH, flags
       | Next_hop ip4 -> 
-        Cstruct.BE.set_uint32 buf_p 0 ip4;
-        (* Cstruct.BE.set_uint32 buf_p 0 (Ipaddr.V4.to_int32 (Ipaddr.V4.of_string_exn "192.168.1.101")); *)
+        Cstruct.BE.set_uint32 buf_p 0 (Ipaddr.V4.to_int32 ip4);
         4, NEXT_HOP, flags
       | As4_path asp ->
         let new_flags = {
@@ -1035,10 +1046,11 @@ let gen_notification e =
   ret
 ;;
 
-let gen_msg ?(test=false) = function
+let gen_msg = function
   | Open o -> gen_open o
   | Update u -> gen_update u
   | Keepalive -> gen_keepalive ()
   | Notification e -> gen_notification e
 ;;
 
+let get_msg_len buf = get_h_len buf

@@ -1,18 +1,7 @@
 open Bgp
 open Alcotest
 
-let ip4_of_ints a b c d =
-  Int32.of_int ((a lsl 24) lor (b lsl 16) lor (c lsl 8) lor d)
-;;
-
-let ip6_half_of_ints a b c d = Int64.logor
-  (Int64.logor (Int64.shift_left (Int64.of_int a) 48) (Int64.shift_left (Int64.of_int b) 32))
-  (Int64.logor (Int64.shift_left (Int64.of_int c) 16) (Int64.of_int d))
-;;
-
-let ip6_of_ints a b c d e f g h = 
-  ((ip6_half_of_ints a b c d), (ip6_half_of_ints e f g h))
-;;
+module Prefix = Ipaddr.V4.Prefix
 
 let test_parse_gen_combo t =
   let msg1 = gen_msg t in
@@ -34,18 +23,19 @@ let test_parse_exn buf wanted_err =
 
 let test_update =
   let f () =
-    let withdrawn = 
-      [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 16); 
-        (Afi.IPv4 (ip4_of_ints 10 0 0 0), 8); 
-        (Afi.IPv4 (ip4_of_ints 172 16 84 0), 24);
-        ] 
-    in
-    let nlri = [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 24)] in
+    let withdrawn = [
+      (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.168.0.0")); 
+      (Prefix.make 8 (Ipaddr.V4.of_string_exn "10.0.0.0"));
+      (Prefix.make 24 (Ipaddr.V4.of_string_exn "172.16.84.0"));  
+    ] in
+    let nlri = [
+      (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.169.0.0")); 
+    ] in
     let flags = {optional=false; transitive=false; partial=false; extlen=false} in
     let path_attrs = [
       flags, Origin IGP;
-      flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
-      flags, Next_hop (ip4_of_ints 192 168 1 253);
+      flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+      flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
     ] in 
     let u = Update {withdrawn; path_attrs; nlri} in
     test_parse_gen_combo u
@@ -57,12 +47,11 @@ let test_update =
 
 let test_update_only_withdrawn =
   let f () =
-    let withdrawn = 
-      [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 16); 
-        (Afi.IPv4 (ip4_of_ints 10 0 0 0), 8); 
-        (Afi.IPv4 (ip4_of_ints 172 16 84 0), 24);
-        ] 
-    in    
+    let withdrawn = [
+      (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.168.0.0")); 
+      (Prefix.make 8 (Ipaddr.V4.of_string_exn "10.0.0.0"));
+      (Prefix.make 24 (Ipaddr.V4.of_string_exn "172.16.84.0"));  
+    ] in  
     let u = Update {withdrawn; path_attrs=[]; nlri=[]} in
     test_parse_gen_combo u
   in
@@ -73,12 +62,14 @@ let test_update_only_withdrawn =
 
 let test_update_only_nlri =
   let f () =
-    let nlri = [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 24)] in
+    let nlri = [
+      (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.169.0.0")); 
+    ] in
     let flags = {optional=false; transitive=false; partial=false; extlen=false} in
     let path_attrs = [
       flags, Origin IGP;
-      flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
-      flags, Next_hop (ip4_of_ints 192 168 1 253);
+      flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+      flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
     ] in 
     let u = Update {withdrawn = []; path_attrs; nlri} in
     test_parse_gen_combo u
@@ -92,9 +83,9 @@ let test_open =
   let f () =
     let o = {
       version=4;
-      my_as= Asn 2;
+      local_asn = 2_l;
       hold_time=180;
-      bgp_id=1001_l;
+      local_id = Ipaddr.V4.of_string_exn "172.19.0.3";
       options=[]
     } in
     test_parse_gen_combo (Open o)
@@ -139,9 +130,9 @@ let test_header_bad_length_error =
 
 let test_len_pfxs_buffer () = 
   let pfxs = [
-    (Afi.IPv4 (ip4_of_ints 10 0 0 0), 8);
-    (Afi.IPv4 (ip4_of_ints 66 173 0 0), 16);
-    (Afi.IPv4 (ip4_of_ints 172 168 13 0), 24);
+    (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.168.0.0")); 
+    (Prefix.make 8 (Ipaddr.V4.of_string_exn "10.0.0.0"));
+    (Prefix.make 24 (Ipaddr.V4.of_string_exn "172.16.84.0")); 
   ] in
   assert (len_pfxs_buffer pfxs = 9)
 ;;
@@ -150,19 +141,19 @@ let test_len_path_attrs_buffer () =
   let flags = {optional=false; transitive=false; partial=false; extlen=false} in
   let path_attrs = [
     flags, Origin IGP;
-    flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
-    flags, Next_hop (ip4_of_ints 192 168 1 253);
+    flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in 
   assert (len_path_attrs_buffer path_attrs = 4 + 19 + 7)
 ;;
 
 let test_len_update_buffer () =
-  let nlri = [(Afi.IPv4 (ip4_of_ints 192 168 0 0), 24)] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
   let flags = {optional=false; transitive=false; partial=false; extlen=false} in
   let path_attrs = [
     flags, Origin IGP;
-    flags, As_path [Set [2_l; 5_l; 3_l]; Seq [10_l; 20_l; 30_l]];
-    flags, Next_hop (ip4_of_ints 192 168 1 253);
+    flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in 
   let u = {withdrawn = []; path_attrs; nlri} in
   assert (len_update_buffer u = 23 + len_path_attrs_buffer path_attrs + len_pfxs_buffer nlri)

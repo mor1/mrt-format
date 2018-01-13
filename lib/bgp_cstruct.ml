@@ -107,9 +107,9 @@
 [%%cstruct
   type opent = {
     version: uint8_t;
-    my_as: uint16_t;
+    local_asn: uint16_t;
     hold_time: uint16_t;
-    bgp_id: uint32_t;
+    local_id: uint32_t;
     opt_len: uint8_t;
   }
   [@@big_endian]
