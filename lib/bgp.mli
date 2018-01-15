@@ -115,7 +115,7 @@ type update_message_error =
   | Malformed_as_path
 
 
-type msg_fmt_error = 
+type error = 
   | Message_header_error of message_header_error
   | Open_message_error of open_message_error
   | Update_message_error of update_message_error
@@ -123,6 +123,16 @@ type msg_fmt_error =
   | Finite_state_machine_error
   | Cease
 
+type t =
+  | Open of opent
+  | Update of update
+  | Notification of error
+  | Keepalive
+
+type msg_fmt_error = 
+  | Parse_msg_h_err of message_header_error
+  | Parse_open_msg_err of open_message_error
+  | Parse_update_msg_err of update_message_error 
 
 type notif_fmt_error =
   | Invalid_error_code
@@ -130,15 +140,7 @@ type notif_fmt_error =
   | Bad_message_length_n
   | Connection_not_synchroniszed_n
 
-
-type t =
-  | Open of opent
-  | Update of update
-  | Notification of msg_fmt_error
-  | Keepalive
-
-
-type error =
+type parse_error =
   | Parsing_error
   | Msg_fmt_error of msg_fmt_error
   | Notif_fmt_error of notif_fmt_error
@@ -160,12 +162,12 @@ val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
 
 val get_msg_len: Cstruct.t -> int
-val parse_buffer_to_t : Cstruct.t -> (t, error) Result.result
+val parse_buffer_to_t : Cstruct.t -> (t, parse_error) Result.result
 
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
-val gen_notification : msg_fmt_error -> Cstruct.t
+val gen_notification : error -> Cstruct.t
 val gen_msg : t -> Cstruct.t
 
 val len_pfxs_buffer : Ipaddr.V4.Prefix.t list -> int

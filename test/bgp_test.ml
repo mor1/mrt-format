@@ -111,7 +111,7 @@ let test_header_sync_error =
     let buf = Cstruct.create 19 in
     Cstruct.BE.set_uint16 buf 16 19;
     Cstruct.set_uint8 buf 18 4;
-    test_parse_exn buf (Msg_fmt_error (Message_header_error Connection_not_synchroniszed))
+    test_parse_exn buf (Msg_fmt_error (Parse_msg_h_err Connection_not_synchroniszed))
   in
   test_case "test error: connection_not_synchronized" `Slow f
 ;;
@@ -123,7 +123,7 @@ let test_header_bad_length_error =
     Cstruct.memset marker 0xff;
     Cstruct.BE.set_uint16 buf 16 19;
     Cstruct.set_uint8 buf 18 2;
-    test_parse_exn buf (Msg_fmt_error (Message_header_error (Bad_message_length 19)))
+    test_parse_exn buf (Msg_fmt_error (Parse_msg_h_err (Bad_message_length 19)))
   in
   test_case "test error: bad length" `Slow f
 ;;
