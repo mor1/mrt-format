@@ -17,8 +17,8 @@ let test_parse_gen_combo t =
 
 let test_parse_exn buf wanted_err =
   parse_buffer_to_t buf |> function
-  | Ok _ -> fail "This should give an exception."
-  | Error e -> if e = wanted_err then () else fail "Wrong exception type"
+    | Ok _ -> fail "This should give an exception."
+    | Error e -> assert (e = wanted_err)
 ;;
 
 let test_update =

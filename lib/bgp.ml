@@ -135,31 +135,7 @@ let get_partial buf =
   in (ip,l)
 ;;
 
-let parse_nlris buf =
-  let lenf buf = Some (1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0))) in
-  
-  let get_nlri4 buf off =
-    Cstruct.(
-      let v = ref 0l in
-      let mask = get_uint8 buf off in
-      let bytes = pfxlen_to_bytes mask in
-      for i = 0 to bytes-1 do
-        v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf (off+i+1)))
-      done;
-      Ipaddr.V4.Prefix.make mask (Ipaddr.V4.of_int32 (!v <<< (8 * (4 - bytes))))
-    )
-  in
 
-  let pf buf =
-    (* This could be a bug. What if the mask of ip6 address is less than 32? *)
-    if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then 
-      get_nlri4 buf 0
-    else 
-      (* Currently, I don't want to support IPv6. So I return a dummy prefix instead *)
-      Ipaddr.V4.Prefix.make 0 (Ipaddr.V4.of_int32 0_l)
-  in
-  cstruct_iter_to_list (Cstruct.iter lenf pf buf)
-;;
 
 
 type capability =
@@ -266,8 +242,10 @@ type notif_fmt_error =
   | Bad_message_length_n
   | Connection_not_synchroniszed_n
 
-
-
+type parse_error =
+  | Parsing_error
+  | Msg_fmt_error of msg_fmt_error
+  | Notif_fmt_error of notif_fmt_error
 
 exception Msg_fmt_err of msg_fmt_error
 exception Notif_fmt_err of notif_fmt_error
@@ -275,6 +253,37 @@ exception Notif_fmt_err of notif_fmt_error
 type asp_segment = 
   | Asn_set of int32 list 
   | Asn_seq of int32 list
+
+
+let parse_nlris buf =
+  let lenf buf = Some (1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0))) in
+  
+  let get_nlri4 buf off =
+    Cstruct.(
+      let v = ref 0l in
+      let mask = get_uint8 buf off in
+      let bytes = pfxlen_to_bytes mask in
+      if bytes > len buf then 
+        raise (Msg_fmt_err (Parse_update_msg_err Invalid_network_field))
+      else begin
+        for i = 0 to bytes-1 do
+          v := (!v <<< 8) +++ (Int32.of_int (get_uint8 buf (off+i+1)))
+        done;
+        Ipaddr.V4.Prefix.make mask (Ipaddr.V4.of_int32 (!v <<< (8 * (4 - bytes))))
+      end
+    )
+  in
+
+  let pf buf =
+    (* This could be a bug. What if the mask of ip6 address is less than 32? *)
+    if pfxlen_to_bytes (Cstruct.get_uint8 buf 0) <= 4 then 
+      get_nlri4 buf 0
+    else
+      (* Currently, I don't want to support IPv6. *)
+      raise (Msg_fmt_err (Parse_update_msg_err Invalid_network_field))
+  in
+  cstruct_iter_to_list (Cstruct.iter lenf pf buf)
+;;
 
 let parse_as4path buf =
   let lenf buf = Some (sizeof_asp + get_asp_n buf*4) in
@@ -368,7 +377,7 @@ let int_to_attr_flags n = {
   transitive = is_transitive n;
   partial = is_partial n;
   extlen = is_extlen n;
-};;
+}
 
   
 type path_attr =
@@ -388,6 +397,71 @@ type path_attr =
 
 type path_attrs = (path_attr_flags * path_attr) list;;
 
+let is_valid_ip_addrs addr = 
+  let invalid_list = [
+    Ipaddr.V4.of_string_exn "0.0.0.0";
+    Ipaddr.V4.of_string_exn "255.255.255.255";
+  ] in
+  not (List.mem addr invalid_list)
+;;
+
+ let find_origin path_attrs =
+  let rec loop = function
+    | [] -> None
+    | hd::tl -> match hd with
+      | (_, Origin v) -> Some v
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+    
+let find_aspath path_attrs =
+  let rec loop = function
+    | [] -> None
+    | hd::tl -> match hd with
+      | (_, As_path v) -> Some v 
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+let find_next_hop path_attrs =
+  let rec loop = function
+    | [] -> None
+    | hd::tl -> match hd with
+      | (_, Next_hop v) -> Some v 
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+let path_attr_to_attr_t = function
+  | Origin _ -> ORIGIN
+  | As_path _ -> AS_PATH
+  | Next_hop _ -> NEXT_HOP
+  | Community _ -> COMMUNITY
+  | Ext_communities -> EXT_COMMUNITIES
+  | Med _ -> MED
+  | Atomic_aggr -> ATOMIC_AGGR
+  | Aggregator -> AGGREGATOR
+  | Mp_reach_nlri -> MP_REACH_NLRI
+  | Mp_unreach_nlri -> MP_UNREACH_NLRI
+  | As4_path _ -> AS4_PATH
+  | Local_pref _ -> LOCAL_PREF
+  | Unknown _ -> UNKNOWN
+;;
+
+let path_attrs_exists attr_t path_attrs = 
+  let f (_, pa) = path_attr_to_attr_t pa = attr_t in
+  List.exists f path_attrs
+;;
+
+let path_attrs_mem (_, path_attr) path_attrs = 
+  let attr_t = path_attr_to_attr_t path_attr in
+  let f (_, pa) = path_attr_to_attr_t pa = attr_t in
+  List.exists f path_attrs
+;;
+
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
@@ -398,40 +472,100 @@ let parse_path_attrs ?(caller=Normal) buf =
   in
   let pf buf =
     let flags = int_to_attr_flags (get_ft_flags buf) in
-    let hlen =
-      if flags.extlen then sizeof_fte else sizeof_ft
-    in
+
+    let hlen = if flags.extlen then sizeof_fte else sizeof_ft in
     let h, p = Cstruct.split buf hlen in
+
+    let pa_len = if flags.extlen then get_ft_len h else get_fte_len h in
+
     let path_attr = match h |> get_ft_tc |> int_to_attr_t with
-    | Some ORIGIN -> 
-      (match Cstruct.get_uint8 p 0 |> int_to_origin with
-      | Some v -> Origin v 
-      | None -> 
+    | Some ORIGIN -> begin
+      if flags.optional = true then 
         let b = Cstruct.shift buf 1 in
-        raise (Msg_fmt_err (Parse_update_msg_err (Invalid_origin_attribute b)))
-      )
-    | Some AS_PATH -> (match caller with
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else if pa_len != 1 then
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_length_error b)))
+      else 
+        match Cstruct.get_uint8 p 0 |> int_to_origin with
+        | Some v -> Origin v 
+        | None -> 
+          let b = Cstruct.shift buf 1 in
+          raise (Msg_fmt_err (Parse_update_msg_err (Invalid_origin_attribute b)))
+    end
+    | Some AS_PATH -> begin
+      if flags.optional = true then 
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else
+        match caller with
         | Normal -> As_path (parse_aspath p)
         | Table2 | Bgp4mp_as4 -> As4_path (parse_as4path p)
-      )
+    end
     | Some AS4_PATH -> As4_path (parse_as4path p)
-    | Some NEXT_HOP -> Next_hop (Ipaddr.V4.of_int32 (Cstruct.BE.get_uint32 p 0))
+    | Some NEXT_HOP -> 
+      if flags.optional = true then 
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else if pa_len != 4 then
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_length_error b)))
+      else 
+        let addr = Ipaddr.V4.of_int32 (Cstruct.BE.get_uint32 p 0) in 
+        if is_valid_ip_addrs addr then Next_hop addr 
+        else 
+          let b = Cstruct.shift buf 1 in
+          raise (Msg_fmt_err (Parse_update_msg_err (Invalid_next_hop_attribute b)))
     | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
     | Some EXT_COMMUNITIES -> Ext_communities
-    | Some MED -> Med (Cstruct.BE.get_uint32 p 0)
-    | Some ATOMIC_AGGR -> Atomic_aggr
-    | Some AGGREGATOR -> Aggregator
+    | Some MED -> 
+      if flags.optional = false then 
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else
+        Med (Cstruct.BE.get_uint32 p 0)
+    | Some ATOMIC_AGGR -> 
+      if flags.optional = false then 
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else Atomic_aggr
+    | Some AGGREGATOR -> 
+      if flags.optional = false then 
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else Aggregator
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
-    | Some LOCAL_PREF -> Local_pref 0
+    | Some LOCAL_PREF -> 
+      if flags.optional = false then 
+        let b = Cstruct.shift buf 1 in
+        raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
+      else Local_pref 0
     | Some UNKNOWN -> Unknown 0
-    | None ->
-      (* printf "Err: Unknown attr tc %d len %d\n%!" (get_ft_tc h) (Cstruct.len p); *)
-      (* Cstruct.hexdump p; *)
-      Unknown (get_ft_tc h)
+    | None -> Unknown (get_ft_tc h)
     in (flags, path_attr)
   in
-  cstruct_iter_to_list (Cstruct.iter lenf pf buf)
+
+  let rec loop iter acc =
+    match iter () with
+    | None -> acc
+    | Some pa ->
+      if path_attrs_mem pa acc then 
+        raise (Msg_fmt_err (Parse_update_msg_err Malformed_attribute_list))
+      else loop iter (pa::acc)
+  in
+  
+  let path_attrs = loop (Cstruct.iter lenf pf buf) [] in
+  if path_attrs_exists ORIGIN path_attrs then
+    let tc = attr_t_to_int ORIGIN in
+    raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
+  else if path_attrs_exists AS_PATH path_attrs then
+    let tc = attr_t_to_int AS_PATH in
+    raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
+  else if path_attrs_exists NEXT_HOP path_attrs then
+    let tc = attr_t_to_int NEXT_HOP in
+    raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
+  else path_attrs
 ;;
 
 type update = {
@@ -482,8 +616,6 @@ let update_to_string u =
     (path_attrs_to_string u.path_attrs)
     (nlris_to_string u.nlri)
 ;;
-
-
 
 let parse_error p =
   match get_err_ec p |> int_to_error_t with
@@ -620,11 +752,6 @@ type t =
   | Notification of error
   | Keepalive
 
-type parse_error =
-  | Parsing_error
-  | Msg_fmt_error of msg_fmt_error
-  | Notif_fmt_error of notif_fmt_error
-
 let to_string = function
   | Open o -> sprintf "OPEN(%s)" (opent_to_string o)
   | Update u -> sprintf "UPDATE(%s)" (update_to_string u)
@@ -656,7 +783,7 @@ let parse ?(caller=Normal) buf =
       );
     
     if (msg_len < 19 || msg_len > 4096) then
-      raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));    
+      raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));   
 
     (* Parse payload *)
     match tc_opt with
@@ -665,6 +792,7 @@ let parse ?(caller=Normal) buf =
     | Some OPEN ->
       if (msg_len < 29) then
         raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));
+      
       let opt_len = get_opent_opt_len payload in
       let m, opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
       let opts =
@@ -682,35 +810,45 @@ let parse ?(caller=Normal) buf =
           )
         in aux 0 [] opts
       in
-      Open { 
-             version = get_opent_version m;
-             local_asn = Int32.of_int (get_opent_local_asn m);
-             hold_time = get_opent_hold_time m;
-             local_id = Ipaddr.V4.of_int32 (get_opent_local_id m);
-             options = opts;
-           }
+      let opent = { 
+        version = get_opent_version m;
+        local_asn = Int32.of_int (get_opent_local_asn m);
+        hold_time = get_opent_hold_time m;
+        local_id = Ipaddr.V4.of_int32 (get_opent_local_id m);
+        options = opts;
+      } in
+      Open opent
     | Some UPDATE ->
-      if (msg_len < 23) then
+      if msg_len < 23 then
         raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));
-      let withdrawn, bs =
-        let wl = Cstruct.BE.get_uint16 payload 0 in
-        Cstruct.split ~start:2 payload wl
-      in
-      let path_attrs, nlri =
-        let pl = Cstruct.BE.get_uint16 bs 0 in
-        Cstruct.split ~start:2 bs pl
-      in
-      Update {
-        withdrawn = parse_nlris withdrawn;
-        path_attrs = parse_path_attrs ~caller path_attrs;
-        nlri = parse_nlris nlri;
-      }
+
+      let wd_len = Cstruct.BE.get_uint16 payload 0 in
+      let pa_len = Cstruct.BE.get_uint16 payload (2 + wd_len) in
+      if wd_len + pa_len + 23 > msg_len then
+        raise (Msg_fmt_err (Parse_update_msg_err (Malformed_attribute_list)))
+      else
+        let withdrawn, bs =
+          let wl = Cstruct.BE.get_uint16 payload 0 in
+          Cstruct.split ~start:2 payload wl
+        in
+        let path_attrs, nlri =
+          let pl = Cstruct.BE.get_uint16 bs 0 in
+          Cstruct.split ~start:2 bs pl
+        in
+        Update {
+          withdrawn = parse_nlris withdrawn;
+          path_attrs = parse_path_attrs ~caller path_attrs;
+          nlri = parse_nlris nlri;
+        } 
     | Some NOTIFICATION -> 
       if (msg_len < 21) then
         raise (Notif_fmt_err Bad_message_length_n);
       let error = parse_error payload in
       Notification error
-    | Some KEEPALIVE -> Keepalive
+    | Some KEEPALIVE ->
+      if msg_len != 19 then 
+        raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));
+      Keepalive
   in
   Cstruct.iter lenf pf buf
 ;;

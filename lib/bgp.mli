@@ -64,7 +64,7 @@ type path_attr =
   | Unknown of int
 
 
-(* type path_attr_t = 
+type attr_t = 
   | UNKNOWN
   | ORIGIN
   | AS_PATH
@@ -77,7 +77,7 @@ type path_attr =
   | MP_REACH_NLRI
   | MP_UNREACH_NLRI
   | EXT_COMMUNITIES
-  | AS4_PATH *)
+  | AS4_PATH
 
 type path_attrs = (path_attr_flags * path_attr) list
 
@@ -113,7 +113,6 @@ type update_message_error =
   | Optional_attribute_error of Cstruct.t
   | Invalid_network_field
   | Malformed_as_path
-
 
 type error = 
   | Message_header_error of message_header_error
@@ -173,4 +172,8 @@ val gen_msg : t -> Cstruct.t
 val len_pfxs_buffer : Ipaddr.V4.Prefix.t list -> int
 val len_path_attrs_buffer : path_attrs -> int
 val len_update_buffer : update -> int
+
+val find_origin : path_attrs -> origin option
+val find_aspath : path_attrs -> asp_segment list option
+val find_next_hop : path_attrs -> Ipaddr.V4.t option
 
