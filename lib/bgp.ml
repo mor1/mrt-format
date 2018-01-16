@@ -254,7 +254,6 @@ type asp_segment =
   | Asn_set of int32 list 
   | Asn_seq of int32 list
 
-
 let parse_nlris buf =
   let lenf buf = Some (1 + (pfxlen_to_bytes (Cstruct.get_uint8 buf 0))) in
   
@@ -397,6 +396,35 @@ type path_attr =
 
 type path_attrs = (path_attr_flags * path_attr) list;;
 
+let rec path_attrs_to_string path_attrs = 
+  let f (_, path_attr) acc =
+    match path_attr with 
+    | Origin v ->
+      sprintf "ORIGIN(%s); %s" (origin_to_string v) acc
+    | As_path v ->
+      sprintf "AS_PATH(%s); %s"
+        (asp_segments_to_string v) acc
+    | As4_path v ->
+      sprintf "AS4_PATH(%s); %s"
+        (asp_segments_to_string v) acc
+    | Next_hop v ->
+      sprintf "NEXT_HOP(%s); %s"
+        (Ipaddr.V4.to_string v) acc
+    | Community v ->
+      sprintf "COMMUNITY(%ld:%ld); %s"
+        (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) acc
+    | Ext_communities -> "EXT_COMMUNITIES; " ^ acc
+    | Med v -> sprintf "MED(%ld); %s" v acc
+    | Atomic_aggr -> "ATOMIC_AGGR; " ^ acc
+    | Aggregator -> "AGGREGATOR; " ^ acc
+    | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
+    | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
+    | Local_pref p -> (sprintf "LOCAL_PREF %d" p) ^ acc
+    | Unknown tc -> sprintf "Unknown attribute with tc %d" tc
+  in
+  List.fold_right f path_attrs ""
+;;
+
 let is_valid_ip_addrs addr = 
   let invalid_list = [
     Ipaddr.V4.of_string_exn "0.0.0.0";
@@ -451,13 +479,7 @@ let path_attr_to_attr_t = function
   | Unknown _ -> UNKNOWN
 ;;
 
-let path_attrs_exists attr_t path_attrs = 
-  let f (_, pa) = path_attr_to_attr_t pa = attr_t in
-  List.exists f path_attrs
-;;
-
-let path_attrs_mem (_, path_attr) path_attrs = 
-  let attr_t = path_attr_to_attr_t path_attr in
+let path_attrs_mem attr_t path_attrs = 
   let f (_, pa) = path_attr_to_attr_t pa = attr_t in
   List.exists f path_attrs
 ;;
@@ -476,7 +498,7 @@ let parse_path_attrs ?(caller=Normal) buf =
     let hlen = if flags.extlen then sizeof_fte else sizeof_ft in
     let h, p = Cstruct.split buf hlen in
 
-    let pa_len = if flags.extlen then get_ft_len h else get_fte_len h in
+    let pa_len = if flags.extlen then get_fte_len h else get_ft_len h in
 
     let path_attr = match h |> get_ft_tc |> int_to_attr_t with
     | Some ORIGIN -> begin
@@ -549,23 +571,29 @@ let parse_path_attrs ?(caller=Normal) buf =
   let rec loop iter acc =
     match iter () with
     | None -> acc
-    | Some pa ->
-      if path_attrs_mem pa acc then 
+    | Some ((_, pa) as v) ->
+      let typ = path_attr_to_attr_t pa in
+      if path_attrs_mem typ acc then 
         raise (Msg_fmt_err (Parse_update_msg_err Malformed_attribute_list))
-      else loop iter (pa::acc)
+      else loop iter (v::acc)
   in
-  
+
   let path_attrs = loop (Cstruct.iter lenf pf buf) [] in
-  if path_attrs_exists ORIGIN path_attrs then
+  
+  Printf.printf "%s" (path_attrs_to_string path_attrs);
+
+  if not (path_attrs_mem ORIGIN path_attrs) then
     let tc = attr_t_to_int ORIGIN in
     raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  else if path_attrs_exists AS_PATH path_attrs then
+  else if not (path_attrs_mem AS_PATH path_attrs) then
     let tc = attr_t_to_int AS_PATH in
     raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  else if path_attrs_exists NEXT_HOP path_attrs then
+  else if not (path_attrs_mem NEXT_HOP path_attrs) then
     let tc = attr_t_to_int NEXT_HOP in
     raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  else path_attrs
+  else 
+    (* This is a temporary workaround for ease of testing *)
+    List.rev path_attrs
 ;;
 
 type update = {
@@ -573,36 +601,6 @@ type update = {
   path_attrs: path_attrs;
   nlri: Ipaddr.V4.Prefix.t list;
 }
-
-
-let rec path_attrs_to_string path_attrs = 
-  let f (_, path_attr) acc =
-    match path_attr with 
-    | Origin v ->
-      sprintf "ORIGIN(%s); %s" (origin_to_string v) acc
-    | As_path v ->
-      sprintf "AS_PATH(%s); %s"
-        (asp_segments_to_string v) acc
-    | As4_path v ->
-      sprintf "AS4_PATH(%s); %s"
-        (asp_segments_to_string v) acc
-    | Next_hop v ->
-      sprintf "NEXT_HOP(%s); %s"
-        (Ipaddr.V4.to_string v) acc
-    | Community v ->
-      sprintf "COMMUNITY(%ld:%ld); %s"
-        (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) acc
-    | Ext_communities -> "EXT_COMMUNITIES; " ^ acc
-    | Med v -> sprintf "MED(%ld); %s" v acc
-    | Atomic_aggr -> "ATOMIC_AGGR; " ^ acc
-    | Aggregator -> "AGGREGATOR; " ^ acc
-    | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
-    | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
-    | Local_pref p -> (sprintf "LOCAL_PREF %d" p) ^ acc
-    | Unknown tc -> sprintf "Unknown attribute with tc %d" tc
-  in
-  List.fold_right f path_attrs ""
-;;
 
 
 let rec nlris_to_string l_pfx = 
@@ -617,7 +615,7 @@ let update_to_string u =
     (nlris_to_string u.nlri)
 ;;
 
-let parse_error p =
+let parse_notif p =
   match get_err_ec p |> int_to_error_t with
   | Some MESSAGE_HEADER_ERROR -> 
     let suberror = match get_err_sec p |> int_to_message_header_error_t with
@@ -686,58 +684,65 @@ let parse_error p =
 ;;
 
 
+let msg_h_err_to_string = function
+  | Connection_not_synchroniszed ->
+    "Connection not synchronized"
+  | Bad_message_length bad_len ->
+    "Bad message length"
+  | Bad_message_type bad_type ->
+    "Bad message type"
+;;
+
+let open_msg_err_to_string = function
+  | Unspecific -> "Unspecific"
+  | Unsupported_version_number vn ->
+    "Unsupported version number"
+  | Bad_peer_as -> 
+    "Bad peer as"
+  | Bad_bgp_identifier ->
+    "Bad bgp identifier"
+  | Unsupported_optional_parameter ->
+    "Unsupported optional parameter"
+  | Unacceptable_hold_time ->
+    "Unacceptable hold time"
+;;
+
+let update_msg_err_to_string = function
+  | Malformed_attribute_list ->
+    "Malformed attribute list"
+  | Unrecognized_wellknown_attribute buf_attr ->
+    "Unrecognized wellknown attribute"
+  | Missing_wellknown_attribute attr ->
+    sprintf "Missing wellknown attribute %d" attr
+  | Attribute_flags_error buf_attr ->
+    "Attribute flags error"
+  | Attribute_length_error buf_attr ->
+    "Attribute length error"
+  | Invalid_origin_attribute buf_attr ->
+    "Invalid origin attribute"
+  | Invalid_next_hop_attribute buf_attr ->
+    "Invalid next hop attribute"
+  | Optional_attribute_error buf_attr ->
+    "Optioanl attribute error"
+  | Invalid_network_field ->
+    "Invalid network field"
+  | Malformed_as_path ->
+    "Malformed as path"
+;;
+
 let error_to_string err =
   match err with
   | Message_header_error sub ->
     let error = "Message header error" in
-    let suberror = (match sub with 
-    | Connection_not_synchroniszed ->
-      "Connection not synchronized"
-    | Bad_message_length bad_len ->
-      "Bad message length"
-    | Bad_message_type bad_type ->
-      "Bad message type"
-    ) in sprintf "%s : %s" error suberror
+    let suberror = msg_h_err_to_string sub in
+    sprintf "%s : %s" error suberror
   | Open_message_error sub ->
     let error = "Open message error" in
-    let suberror = (match sub with
-    | Unspecific -> "Unspecific"
-    | Unsupported_version_number vn ->
-      "Unsupported version number"
-    | Bad_peer_as -> 
-      "Bad peer as"
-    | Bad_bgp_identifier ->
-      "Bad bgp identifier"
-    | Unsupported_optional_parameter ->
-      "Unsupported optional parameter"
-    | Unacceptable_hold_time ->
-      "Unacceptable hold time"
-    ) in sprintf "%s : %s" error suberror
+    let suberror = open_msg_err_to_string sub in 
+    sprintf "%s : %s" error suberror
   | Update_message_error sub ->
     let error = "Update message error" in
-    let suberror = 
-      match sub with
-      | Malformed_attribute_list ->
-        "Malformed attribute list"
-      | Unrecognized_wellknown_attribute buf_attr ->
-        "Unrecognized wellknown attribute"
-      | Missing_wellknown_attribute attr ->
-        sprintf "Missing wellknown attribute %d" attr
-      | Attribute_flags_error buf_attr ->
-        "Attribute flags error"
-      | Attribute_length_error buf_attr ->
-        "Attribute length error"
-      | Invalid_origin_attribute buf_attr ->
-        "Invalid origin attribute"
-      | Invalid_next_hop_attribute buf_attr ->
-        "Invalid next hop attribute"
-      | Optional_attribute_error buf_attr ->
-        "Optioanl attribute error"
-      | Invalid_network_field ->
-        "Invalid network field"
-      | Malformed_as_path ->
-        "Malformed as path"
-    in 
+    let suberror = update_msg_err_to_string sub in
     sprintf "%s : %s" error suberror
   | Hold_timer_expired ->
     "Hold timer expired"
@@ -745,6 +750,18 @@ let error_to_string err =
     "Finite state machine error"
   | Cease -> "Cease"
 ;;
+
+let parse_error_to_string = function
+  | Parsing_error -> "Parsing error"
+  | Msg_fmt_error err -> begin
+    match err with
+    | Parse_msg_h_err sub -> msg_h_err_to_string sub
+    | Parse_open_msg_err sub -> open_msg_err_to_string sub 
+    | Parse_update_msg_err sub -> update_msg_err_to_string sub
+  end
+  | Notif_fmt_error _ -> "Notif format err"
+;;
+    
 
 type t =
   | Open of opent
@@ -835,15 +852,24 @@ let parse ?(caller=Normal) buf =
           let pl = Cstruct.BE.get_uint16 bs 0 in
           Cstruct.split ~start:2 bs pl
         in
-        Update {
-          withdrawn = parse_nlris withdrawn;
-          path_attrs = parse_path_attrs ~caller path_attrs;
-          nlri = parse_nlris nlri;
-        } 
+        let withdrawn = parse_nlris withdrawn in
+        let nlri = parse_nlris nlri in
+        if nlri = [] then
+          Update {
+            withdrawn;
+            path_attrs = [];
+            nlri;
+          }
+        else
+          Update {
+            withdrawn;
+            path_attrs = parse_path_attrs ~caller path_attrs;
+            nlri;
+          }
     | Some NOTIFICATION -> 
       if (msg_len < 21) then
         raise (Notif_fmt_err Bad_message_length_n);
-      let error = parse_error payload in
+      let error = parse_notif payload in
       Notification error
     | Some KEEPALIVE ->
       if msg_len != 19 then 
@@ -863,7 +889,7 @@ let parse_buffer_to_t buf =
   with
   | Msg_fmt_err err -> Error (Msg_fmt_error err)
   | Notif_fmt_err err -> Error (Notif_fmt_error err)
-  | Invalid_argument str -> Error Parsing_error
+  (* | Invalid_argument str -> Error Parsing_error *)
 ;;
 
 let len_header_buffer = sizeof_h

@@ -3,14 +3,138 @@ open Alcotest
 
 module Prefix = Ipaddr.V4.Prefix
 
+let test_find_origin () =
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  assert (find_origin path_attrs = Some Bgp.EGP);
+
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  assert (find_origin path_attrs = None);
+;;
+
+let test_find_origin () =
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
+
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+  ] in
+  assert (find_aspath path_attrs = None);
+;;
+
+let test_find_aspath () =
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
+
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+  ] in
+  assert (find_aspath path_attrs = None);
+;;
+
+let test_find_next_hop () =
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let id = Ipaddr.V4.of_string_exn "172.19.10.1" in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+    (flags, Next_hop id)
+  ] in
+  assert (find_next_hop path_attrs = Some id);
+
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  assert (find_next_hop path_attrs = None);
+;;
+
+let test_path_attrs_mem () =
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  assert (path_attrs_mem ORIGIN path_attrs);
+  assert (path_attrs_mem AS_PATH path_attrs);
+  assert (path_attrs_mem NEXT_HOP path_attrs = false);
+;;
+
 let test_parse_gen_combo t =
   let msg1 = gen_msg t in
   let t2 = 
     match (parse_buffer_to_t msg1) with 
-    | Error e -> assert false 
+    | Error err -> 
+      failwith (parse_error_to_string err)
     | Ok v -> v 
   in
   let msg2 = gen_msg t2 in
+
+  Printf.printf "%s \n" (to_string t);
+  Printf.printf "%s \n" (to_string t2);
+  
   assert (Cstruct.equal msg1 msg2);
   Printf.printf "Test pass: %s\n" (Bgp.to_string t2)
 ;;
@@ -21,7 +145,7 @@ let test_parse_exn buf wanted_err =
     | Error e -> assert (e = wanted_err)
 ;;
 
-let test_update =
+let test_normal_update =
   let f () =
     let withdrawn = [
       (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.168.0.0")); 
@@ -162,8 +286,14 @@ let test_len_update_buffer () =
 
 let () =
   run "bgp" [
+    "util", [
+      test_case "test find_origin" `Slow test_find_origin;
+      test_case "test find_aspath" `Slow test_find_aspath;
+      test_case "test find_next_hop" `Slow test_find_next_hop;
+      test_case "test path_attrs_mem" `Slow test_path_attrs_mem;
+    ];
     "header", [test_header_sync_error; test_header_bad_length_error];
-    "update", [test_update; test_update_only_nlri; test_update_only_withdrawn ];
+    "update", [test_normal_update; test_update_only_nlri; test_update_only_withdrawn ];
     "open", [test_open];
     "keepalive", [test_keepalive];
     "notification", [test_notify];

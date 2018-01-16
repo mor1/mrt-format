@@ -177,3 +177,6 @@ val find_origin : path_attrs -> origin option
 val find_aspath : path_attrs -> asp_segment list option
 val find_next_hop : path_attrs -> Ipaddr.V4.t option
 
+val path_attrs_mem : attr_t -> path_attrs -> bool
+
+val parse_error_to_string : parse_error -> string
