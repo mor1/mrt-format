@@ -579,8 +579,6 @@ let parse_path_attrs ?(caller=Normal) buf =
   in
 
   let path_attrs = loop (Cstruct.iter lenf pf buf) [] in
-  
-  Printf.printf "%s" (path_attrs_to_string path_attrs);
 
   if not (path_attrs_mem ORIGIN path_attrs) then
     let tc = attr_t_to_int ORIGIN in
@@ -889,7 +887,7 @@ let parse_buffer_to_t buf =
   with
   | Msg_fmt_err err -> Error (Msg_fmt_error err)
   | Notif_fmt_err err -> Error (Notif_fmt_error err)
-  (* | Invalid_argument str -> Error Parsing_error *)
+  | Invalid_argument str -> Error Parsing_error
 ;;
 
 let len_header_buffer = sizeof_h

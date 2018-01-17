@@ -160,23 +160,27 @@ val update_to_string : update -> string
 val to_string : t -> string
 val parse : ?caller:caller -> Cstruct.t -> t Cstruct.iter
 
+(* mainly used by bgpd.ml *)
 val get_msg_len: Cstruct.t -> int
 val parse_buffer_to_t : Cstruct.t -> (t, parse_error) Result.result
 
+(* Generation *)
 val gen_open : opent -> Cstruct.t
 val gen_update : update -> Cstruct.t
 val gen_keepalive : unit -> Cstruct.t
 val gen_notification : error -> Cstruct.t
 val gen_msg : t -> Cstruct.t
 
+(* Generated buffer length related *)
 val len_pfxs_buffer : Ipaddr.V4.Prefix.t list -> int
 val len_path_attrs_buffer : path_attrs -> int
 val len_update_buffer : update -> int
 
+(* Util functions related to path_attrs *)
 val find_origin : path_attrs -> origin option
 val find_aspath : path_attrs -> asp_segment list option
 val find_next_hop : path_attrs -> Ipaddr.V4.t option
-
 val path_attrs_mem : attr_t -> path_attrs -> bool
 
+(* For debugging *)
 val parse_error_to_string : parse_error -> string

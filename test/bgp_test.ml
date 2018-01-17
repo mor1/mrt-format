@@ -1,6 +1,8 @@
 open Bgp
 open Alcotest
 
+open Bgp_cstruct
+
 module Prefix = Ipaddr.V4.Prefix
 
 let test_find_origin () =
@@ -230,28 +232,6 @@ let test_keepalive =
   test_case "Simple test for keepalive." `Slow f
 ;;
 
-let test_header_sync_error =
-  let f () =
-    let buf = Cstruct.create 19 in
-    Cstruct.BE.set_uint16 buf 16 19;
-    Cstruct.set_uint8 buf 18 4;
-    test_parse_exn buf (Msg_fmt_error (Parse_msg_h_err Connection_not_synchroniszed))
-  in
-  test_case "test error: connection_not_synchronized" `Slow f
-;;
-
-let test_header_bad_length_error =
-  let f () =
-    let buf = Cstruct.create 19 in
-    let marker, _ = Cstruct.split buf 16 in
-    Cstruct.memset marker 0xff;
-    Cstruct.BE.set_uint16 buf 16 19;
-    Cstruct.set_uint8 buf 18 2;
-    test_parse_exn buf (Msg_fmt_error (Parse_msg_h_err (Bad_message_length 19)))
-  in
-  test_case "test error: bad length" `Slow f
-;;
-
 let test_len_pfxs_buffer () = 
   let pfxs = [
     (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.168.0.0")); 
@@ -283,6 +263,158 @@ let test_len_update_buffer () =
   assert (len_update_buffer u = 23 + len_path_attrs_buffer path_attrs + len_pfxs_buffer nlri)
 ;;
 
+let test_header_sync_error () =
+  let buf = Cstruct.create 19 in
+  Cstruct.BE.set_uint16 buf 16 19;
+  Cstruct.set_uint8 buf 18 4;
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error e -> 
+    assert (e = (Msg_fmt_error (Parse_msg_h_err Connection_not_synchroniszed)))
+;;
+
+let test_header_bad_length_error () =
+  let buf = Cstruct.create 19 in
+  let marker, _ = Cstruct.split buf 16 in
+  Cstruct.memset marker 0xff;
+  Cstruct.BE.set_uint16 buf 16 19;
+  Cstruct.set_uint8 buf 18 2;
+  
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error err ->
+    assert (err = Msg_fmt_error (Parse_msg_h_err (Bad_message_length 19)))
+;;
+
+let test_header_bad_message_type () =
+  let buf = Cstruct.create 19 in
+  let marker, _ = Cstruct.split buf 16 in
+  Cstruct.memset marker 0xff;
+  Cstruct.BE.set_uint16 buf 16 19;
+  set_h_typ buf 6;
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error err ->
+    assert (err = Msg_fmt_error (Parse_msg_h_err (Bad_message_type 6)))
+;;
+
+let test_update_duplicated_attr () =
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+    (flags, Origin EGP);
+  ] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error err ->
+    assert (err = Msg_fmt_error (Parse_update_msg_err Malformed_attribute_list))
+;;
+
+let test_update_missing_well_known_attr () = 
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+  ] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error err ->
+    assert (err = Msg_fmt_error (Parse_update_msg_err (Missing_wellknown_attribute 3)))
+;;
+
+let test_update_attr_flags_err () = 
+  let flags = {
+    transitive = false;
+    optional = true;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error (Msg_fmt_error (Parse_update_msg_err (Attribute_flags_error _))) ->
+    assert true
+  | Error _ -> assert false
+;;
+
+
+let test_update_attr_length_err () = 
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
+
+  Cstruct.set_uint8 buf 25 2;
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error (Msg_fmt_error (Parse_update_msg_err (Attribute_length_error _))) ->
+    assert true
+  | Error err -> 
+    Printf.printf "%s" (parse_error_to_string err);
+    assert false
+;;
+
+let test_update_invalid_origin () = 
+  let flags = {
+    transitive = false;
+    optional = false;
+    partial = false;
+    extlen = false;
+  } in
+  let path_attrs = [
+    (flags, Origin EGP);
+    (flags, As_path [Asn_seq [1_l]]);
+    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
+
+  Cstruct.set_uint8 buf 26 4;
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error (Msg_fmt_error (Parse_update_msg_err (Invalid_origin_attribute _))) ->
+    assert true
+  | Error err -> 
+    Printf.printf "%s" (parse_error_to_string err);
+    assert false
+;;
 
 let () =
   run "bgp" [
@@ -292,7 +424,6 @@ let () =
       test_case "test find_next_hop" `Slow test_find_next_hop;
       test_case "test path_attrs_mem" `Slow test_path_attrs_mem;
     ];
-    "header", [test_header_sync_error; test_header_bad_length_error];
     "update", [test_normal_update; test_update_only_nlri; test_update_only_withdrawn ];
     "open", [test_open];
     "keepalive", [test_keepalive];
@@ -301,7 +432,17 @@ let () =
       test_case "test len pfxs buffer" `Slow test_len_pfxs_buffer;
       test_case "test len path attrs buffer" `Slow test_len_path_attrs_buffer;
       test_case "test len update buffer" `Slow test_len_update_buffer;
-    ]
+    ];
+    "error", [
+      test_case "test error: connection_not_synchronized" `Slow test_header_sync_error; 
+      test_case "test error: bad length" `Slow test_header_bad_length_error;
+      test_case "test error: bad message type" `Slow test_header_bad_message_type;
+      test_case "test error: duplicated attr" `Slow test_update_duplicated_attr;
+      test_case "test error: missing well known attr" `Slow test_update_missing_well_known_attr;
+      test_case "test error: attribute flags error" `Slow test_update_attr_flags_err;
+      test_case "test error: attribute length error" `Slow test_update_attr_length_err;
+      test_case "test error: invalid origin attribute" `Slow test_update_invalid_origin;
+    ];
   ]
 ;;
 
