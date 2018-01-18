@@ -484,6 +484,9 @@ let path_attrs_mem attr_t path_attrs =
   List.exists f path_attrs
 ;;
 
+let path_attrs_remove attr_t path_attrs = 
+  List.find_all (fun (_, pa) -> path_attr_to_attr_t pa <> attr_t) path_attrs 
+
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
@@ -930,11 +933,11 @@ let gen_keepalive () =
 ;;
   
 let len_pfxs_buffer pfxs =
-  let f prefix = 
+  let f acc prefix = 
     let num_b = pfxlen_to_bytes (Ipaddr.V4.Prefix.bits prefix) in
-    num_b + 1
+    num_b + 1 + acc
   in 
-  List.fold_left (+) 0 (List.map f pfxs)
+  List.fold_left f 0 pfxs
 ;;
 
 let fill_pfxs_buffer buf pfxs =
