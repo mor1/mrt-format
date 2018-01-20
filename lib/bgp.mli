@@ -60,7 +60,7 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path of asp_segment list
-  | Local_pref of int
+  | Local_pref of int32
   | Unknown of Cstruct.t
 
 

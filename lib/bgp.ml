@@ -391,7 +391,7 @@ type path_attr =
   | Mp_reach_nlri
   | Mp_unreach_nlri
   | As4_path of asp_segment list
-  | Local_pref of int
+  | Local_pref of int32
   | Unknown of Cstruct.t
 
 type path_attrs = (path_attr_flags * path_attr) list;;
@@ -419,7 +419,7 @@ let rec path_attrs_to_string path_attrs =
     | Aggregator -> "AGGREGATOR; " ^ acc
     | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
     | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
-    | Local_pref p -> (sprintf "LOCAL_PREF %d" p) ^ acc
+    | Local_pref p -> (sprintf "LOCAL_PREF %ld" p) ^ acc
     | Unknown _ -> sprintf "Unknown attribute"
   in
   List.fold_right f path_attrs ""
@@ -544,7 +544,8 @@ let parse_path_attrs ?(caller=Normal) buf =
         else 
           let b = Cstruct.shift buf 1 in
           raise (Msg_fmt_err (Parse_update_msg_err (Invalid_next_hop_attribute b)))
-    | Some COMMUNITY -> Community (Cstruct.BE.get_uint32 p 0)
+    | Some COMMUNITY -> 
+      Community (Cstruct.BE.get_uint32 p 0)
     | Some EXT_COMMUNITIES -> Ext_communities
     | Some MED -> 
       if flags.optional = false then 
@@ -568,7 +569,8 @@ let parse_path_attrs ?(caller=Normal) buf =
       if flags.optional = false then 
         let b = Cstruct.shift buf 1 in
         raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
-      else Local_pref 0
+      else 
+        Local_pref (Cstruct.BE.get_uint32 p 0)
     | None -> 
       let b = Cstruct.shift buf 1 in
       Unknown b
@@ -1057,22 +1059,54 @@ let len_path_attrs_buffer path_attrs =
 
 let fill_path_attrs_buffer buf path_attrs =
   let f total_len (flags, path_attr) =
+    (* Adjust buffer to the start point *)
     let buf_slice = Cstruct.shift buf total_len in
-    
-    let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
-    let buf_h, buf_p = Cstruct.split buf_slice len_h in
     
     (* Proceed to fill *)
     match path_attr with
     | Origin origin -> 
+      (* Well-known mandatory *)
+      let flags = {
+        optional=false;
+        transitive=true;
+        partial=false;
+        extlen=false;
+      } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
       Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
       let _ = fill_attr_h_buf buf_h flags ORIGIN 1 in
+      
       total_len + 1 + len_h
     | As_path asp ->
+      (* Well-known mandatory *)
+      let flags = {
+        optional=false;
+        transitive=true;
+        partial=false;
+        extlen=false;
+      } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
       let len_p = fill_attr_as_path_data_buffer buf_p asp in
       let _ = fill_attr_h_buf buf_h flags AS_PATH len_p in
       total_len + len_p + len_h
     | Next_hop ip4 -> 
+      (* Well-known mandatory *)
+      let flags = {
+        optional=false;
+        transitive=true;
+        partial=false;
+        extlen=false;
+      } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
       Cstruct.BE.set_uint32 buf_p 0 (Ipaddr.V4.to_int32 ip4);
       let _ = fill_attr_h_buf buf_h flags NEXT_HOP 4 in
       total_len + 4 + len_h
@@ -1080,12 +1114,61 @@ let fill_path_attrs_buffer buf path_attrs =
       let new_flags = {
         optional=true;
         transitive=flags.transitive;
-        partial=flags.partial;
+        partial=false;
         extlen=flags.extlen;
       } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
       let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
       let _ = fill_attr_h_buf buf_h new_flags AS4_PATH len_p in
       total_len + len_p + len_h
+    | Med v ->
+      (* Optional non-transitive *)
+      let flags = {
+        optional=true;
+        transitive=false;
+        partial=false;
+        extlen=false;
+      } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
+      Cstruct.BE.set_uint32 buf_p 0 v;
+      let _ = fill_attr_h_buf buf_h flags MED 4 in
+      total_len + 4 + len_h
+    | Local_pref v ->
+      (* Well-known discretionary *)
+      let flags = {
+        optional=false;
+        transitive=true;
+        partial=false;
+        extlen=false;
+      } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
+      Cstruct.BE.set_uint32 buf_p 0 v;
+      let _ = fill_attr_h_buf buf_h flags LOCAL_PREF 4 in
+      
+      total_len + 4 + len_h
+    | Atomic_aggr ->
+      (* Well-known discretionary *)
+      let flags = {
+        optional=false;
+        transitive=true;
+        partial=false;
+        extlen=false;
+      } in
+
+      let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
+      let buf_h, buf_p = Cstruct.split buf_slice len_h in
+
+      let _ = fill_attr_h_buf buf_h flags ATOMIC_AGGR 0 in
+      total_len + len_h
     | Unknown buf -> 
       (* This is a special case *)
 

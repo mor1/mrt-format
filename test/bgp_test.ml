@@ -1,5 +1,6 @@
 open Bgp
 open Alcotest
+open Operators
 
 open Bgp_cstruct
 
@@ -394,6 +395,8 @@ let test_update_attr_flags_err () =
     partial = false;
     extlen = false;
   } in
+
+
   let path_attrs = [
     (flags, Origin EGP);
     (flags, As_path [Asn_seq [1_l]]);
@@ -409,6 +412,29 @@ let test_update_attr_flags_err () =
   | Error _ -> assert false
 ;;
 
+
+let set_bit n pos b =
+  if (n > 255) then raise (Failure "Invalid argument: n is too large.")
+  else if (pos > 7) then raise (Failure "Invalid argument: pos is too large.")
+  else
+    let n_32 = Int32.of_int n in 
+    let res_32 = 
+      match b with
+      | 0 -> (n_32 ^^^ (1_l <<< pos))
+      | 1 -> (n_32 ||| (1_l <<< pos))
+      | _ -> raise (Failure "Invalid argument: b should be either 0 or 1.")
+    in
+      Int32.to_int res_32
+;;
+
+let attr_flags_to_int {optional; transitive; partial; extlen} =
+  let n_ref = ref 0 in
+  if (optional) then n_ref := set_bit (!n_ref) 7 1;
+  if (transitive) then n_ref := set_bit (!n_ref) 6 1;
+  if (partial) then n_ref := set_bit (!n_ref) 5 1;
+  if (extlen) then n_ref := set_bit (!n_ref) 4 1;
+  !n_ref
+;;
 
 let test_update_attr_length_err () = 
   let flags = {
@@ -446,7 +472,7 @@ let test_update_invalid_origin () =
   let path_attrs = [
     (flags, Origin EGP);
     (flags, As_path [Asn_seq [1_l]]);
-    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+    (flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253"));
   ] in
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
   let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
