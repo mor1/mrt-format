@@ -61,7 +61,7 @@ type path_attr =
   | Mp_unreach_nlri
   | As4_path of asp_segment list
   | Local_pref of int32
-  | Unknown of Cstruct.t
+  | Unknown of path_attr_flags * Cstruct.t
 
 
 type attr_t = 
@@ -78,7 +78,7 @@ type attr_t =
   | EXT_COMMUNITIES
   | AS4_PATH
 
-type path_attrs = (path_attr_flags * path_attr) list
+type path_attrs = path_attr list
 
 type update = {
   withdrawn: Ipaddr.V4.Prefix.t list;

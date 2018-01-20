@@ -6,119 +6,94 @@ open Bgp_cstruct
 
 module Prefix = Ipaddr.V4.Prefix
 
+let set_bit n pos b =
+  if (n > 255) then raise (Failure "Invalid argument: n is too large.")
+  else if (pos > 7) then raise (Failure "Invalid argument: pos is too large.")
+  else
+    let n_32 = Int32.of_int n in 
+    let res_32 = 
+      match b with
+      | 0 -> (n_32 ^^^ (1_l <<< pos))
+      | 1 -> (n_32 ||| (1_l <<< pos))
+      | _ -> raise (Failure "Invalid argument: b should be either 0 or 1.")
+    in
+      Int32.to_int res_32
+;;
+
+let attr_flags_to_int {optional; transitive; partial; extlen} =
+  let n_ref = ref 0 in
+  if (optional) then n_ref := set_bit (!n_ref) 7 1;
+  if (transitive) then n_ref := set_bit (!n_ref) 6 1;
+  if (partial) then n_ref := set_bit (!n_ref) 5 1;
+  if (extlen) then n_ref := set_bit (!n_ref) 4 1;
+  !n_ref
+;;
+
+
 let test_find_origin () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
   ] in
   assert (find_origin path_attrs = Some Bgp.EGP);
 
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
   let path_attrs = [
-    (flags, As_path [Asn_seq [1_l]]);
+    As_path [Asn_seq [1_l]];
   ] in
   assert (find_origin path_attrs = None);
 ;;
 
 let test_find_origin () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
   ] in
   assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
-
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+  
   let path_attrs = [
-    (flags, Origin EGP);
+    Origin EGP;
   ] in
   assert (find_aspath path_attrs = None);
 ;;
 
 let test_find_aspath () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
   ] in
   assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
 
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
+    ( Origin EGP);
   ] in
   assert (find_aspath path_attrs = None);
 ;;
 
 let test_find_next_hop () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let id = Ipaddr.V4.of_string_exn "172.19.10.1" in
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
-    (flags, Next_hop id)
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
+    ( Next_hop id)
   ] in
   assert (find_next_hop path_attrs = Some id);
 
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
   ] in
   assert (find_next_hop path_attrs = None);
 ;;
 
 let test_path_attrs_mem () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
   ] in
   assert (path_attrs_mem ORIGIN path_attrs);
   assert (path_attrs_mem AS_PATH path_attrs);
@@ -126,15 +101,10 @@ let test_path_attrs_mem () =
 ;;
 
 let test_path_attrs_remove () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
   ] in
 
   let tmp = path_attrs_remove ORIGIN path_attrs in
@@ -176,11 +146,11 @@ let test_normal_update =
     let nlri = [
       (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.169.0.0")); 
     ] in
-    let flags = {optional=false; transitive=false; partial=false; extlen=false} in
+
     let path_attrs = [
-      flags, Origin IGP;
-      flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
-      flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+       Origin IGP;
+       As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+       Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
     ] in 
     let u = Update {withdrawn; path_attrs; nlri} in
     test_parse_gen_combo u
@@ -210,11 +180,11 @@ let test_update_only_nlri =
     let nlri = [
       (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.169.0.0")); 
     ] in
-    let flags = {optional=false; transitive=false; partial=false; extlen=false} in
+
     let path_attrs = [
-      flags, Origin IGP;
-      flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
-      flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+       Origin IGP;
+       As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+       Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
     ] in 
     let u = Update {withdrawn = []; path_attrs; nlri} in
     test_parse_gen_combo u
@@ -225,20 +195,26 @@ let test_update_only_nlri =
 ;;
 
 let test_update_with_unknown_attr () =
+  let flags = {
+    transitive = false;
+    optional = true;
+    partial = false;
+    extlen = false;
+  } in
+
   let nlri = [
     (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.169.0.0")); 
   ] in
-  let flags1 = { optional=false; transitive=true; partial=false; extlen=false } in
-  let flags2 = { optional=true; transitive=true; partial=false; extlen=false } in
   let path_attrs = [
-    flags2, Origin IGP;
-    flags1, Origin IGP;
-    flags1, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
-    flags1, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+    Origin IGP;
+    Origin IGP;
+    As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+    Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in 
   let buf = gen_msg (Update {withdrawn = []; path_attrs; nlri}) in
 
   (* Modify the type code to something unknown *)
+  Cstruct.set_uint8 buf 23 (attr_flags_to_int flags);
   Cstruct.set_uint8 buf 24 300;
 
   match parse_buffer_to_t buf with
@@ -289,22 +265,20 @@ let test_len_pfxs_buffer () =
 ;;
 
 let test_len_path_attrs_buffer () = 
-  let flags = {optional=false; transitive=false; partial=false; extlen=false} in
   let path_attrs = [
-    flags, Origin IGP;
-    flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
-    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+     Origin IGP;
+     As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+     Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in 
   assert (len_path_attrs_buffer path_attrs = 4 + 19 + 7)
 ;;
 
 let test_len_update_buffer () =
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
-  let flags = {optional=false; transitive=false; partial=false; extlen=false} in
   let path_attrs = [
-    flags, Origin IGP;
-    flags, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
-    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+     Origin IGP;
+     As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+     Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in 
   let u = {withdrawn = []; path_attrs; nlri} in
   assert (len_update_buffer u = 23 + len_path_attrs_buffer path_attrs + len_pfxs_buffer nlri)
@@ -348,16 +322,11 @@ let test_header_bad_message_type () =
 ;;
 
 let test_update_duplicated_attr () =
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
-    (flags, Origin EGP);
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
+    ( Origin EGP);
   ] in
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
   let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
@@ -369,15 +338,10 @@ let test_update_duplicated_attr () =
 ;;
 
 let test_update_missing_well_known_attr () = 
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
   ] in
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
   let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
@@ -388,6 +352,8 @@ let test_update_missing_well_known_attr () =
     assert (err = Msg_fmt_error (Parse_update_msg_err (Missing_wellknown_attribute 3)))
 ;;
 
+
+
 let test_update_attr_flags_err () = 
   let flags = {
     transitive = false;
@@ -396,15 +362,15 @@ let test_update_attr_flags_err () =
     extlen = false;
   } in
 
-
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
-    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
+     Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
   let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
 
+  Cstruct.set_uint8 buf 23 (attr_flags_to_int flags);
   match parse_buffer_to_t buf with
   | Ok _ -> assert false
   | Error (Msg_fmt_error (Parse_update_msg_err (Attribute_flags_error _))) ->
@@ -413,42 +379,15 @@ let test_update_attr_flags_err () =
 ;;
 
 
-let set_bit n pos b =
-  if (n > 255) then raise (Failure "Invalid argument: n is too large.")
-  else if (pos > 7) then raise (Failure "Invalid argument: pos is too large.")
-  else
-    let n_32 = Int32.of_int n in 
-    let res_32 = 
-      match b with
-      | 0 -> (n_32 ^^^ (1_l <<< pos))
-      | 1 -> (n_32 ||| (1_l <<< pos))
-      | _ -> raise (Failure "Invalid argument: b should be either 0 or 1.")
-    in
-      Int32.to_int res_32
-;;
-
-let attr_flags_to_int {optional; transitive; partial; extlen} =
-  let n_ref = ref 0 in
-  if (optional) then n_ref := set_bit (!n_ref) 7 1;
-  if (transitive) then n_ref := set_bit (!n_ref) 6 1;
-  if (partial) then n_ref := set_bit (!n_ref) 5 1;
-  if (extlen) then n_ref := set_bit (!n_ref) 4 1;
-  !n_ref
-;;
 
 let test_update_attr_length_err () = 
-  let flags = {
-    transitive = false;
-    optional = false;
-    partial = false;
-    extlen = false;
-  } in
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
-    flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
+     Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
   ] in
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  
   let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
 
   Cstruct.set_uint8 buf 25 2;
@@ -462,17 +401,41 @@ let test_update_attr_length_err () =
     assert false
 ;;
 
-let test_update_invalid_origin () = 
+let test_update_attr_unrecognized_wn_attr () =
   let flags = {
     transitive = false;
     optional = false;
     partial = false;
     extlen = false;
   } in
+
   let path_attrs = [
-    (flags, Origin EGP);
-    (flags, As_path [Asn_seq [1_l]]);
-    (flags, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253"));
+    Origin EGP;
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
+    Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in
+  let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
+  let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
+
+  Cstruct.set_uint8 buf 23 (attr_flags_to_int flags);
+  Cstruct.set_uint8 buf 24 10;
+
+  match parse_buffer_to_t buf with
+  | Ok _ -> assert false
+  | Error (Msg_fmt_error (Parse_update_msg_err (Unrecognized_wellknown_attribute _))) ->
+    assert true
+  | Error err -> 
+    Printf.printf "%s" (parse_error_to_string err);
+    assert false
+;;
+
+let test_update_invalid_origin () = 
+
+  let path_attrs = [
+    ( Origin EGP);
+    ( As_path [Asn_seq [1_l]]);
+    ( Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253"));
   ] in
   let nlri = [Prefix.make 24 (Ipaddr.V4.of_string_exn "192.168.45.0")] in
   let buf = gen_msg (Update { withdrawn = []; path_attrs; nlri }) in
@@ -521,6 +484,7 @@ let () =
       test_case "test error: missing well known attr" `Slow test_update_missing_well_known_attr;
       test_case "test error: attribute flags error" `Slow test_update_attr_flags_err;
       test_case "test error: attribute length error" `Slow test_update_attr_length_err;
+      test_case "test error: unrecognised wellknwon attr" `Slow test_update_attr_unrecognized_wn_attr;
       test_case "test error: invalid origin attribute" `Slow test_update_invalid_origin;
     ];
   ]
