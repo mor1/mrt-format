@@ -223,6 +223,34 @@ let test_update_only_nlri =
     `Slow f
 ;;
 
+let test_update_with_unknown_attr () =
+  let nlri = [
+    (Prefix.make 16 (Ipaddr.V4.of_string_exn "192.169.0.0")); 
+  ] in
+  let flags1 = { optional=false; transitive=true; partial=false; extlen=false } in
+  let flags2 = { optional=true; transitive=true; partial=false; extlen=false } in
+  let path_attrs = [
+    flags2, Origin IGP;
+    flags1, Origin IGP;
+    flags1, As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+    flags1, Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in 
+  let buf = gen_msg (Update {withdrawn = []; path_attrs; nlri}) in
+
+  (* Modify the type code to something unknown *)
+  Cstruct.set_uint8 buf 24 300;
+
+  match parse_buffer_to_t buf with
+  | Ok (Update { path_attrs } as msg) ->
+    assert (List.length path_attrs = 4);
+    test_parse_gen_combo msg
+  | Ok _ -> 
+    assert false
+  | Error err -> 
+    Printf.printf "%s\n" (parse_error_to_string err);
+    assert false
+;;
+
 let test_open =
   let f () =
     let o = {
@@ -435,6 +463,8 @@ let test_update_invalid_origin () =
 ;;
 
 let () =
+  Printexc.record_backtrace true;
+
   run "bgp" [
     "util", [
       test_case "test find_origin" `Slow test_find_origin;
@@ -443,7 +473,12 @@ let () =
       test_case "test path_attrs_mem" `Slow test_path_attrs_mem;
       test_case "test path_attrs_remove" `Slow test_path_attrs_remove;
     ];
-    "update", [test_normal_update; test_update_only_nlri; test_update_only_withdrawn ];
+    "update", [
+      test_normal_update; 
+      test_update_only_nlri; 
+      test_update_only_withdrawn;
+      test_case "test update_with_unknown_attr" `Slow test_update_with_unknown_attr;
+    ];
     "open", [test_open];
     "keepalive", [test_keepalive];
     "notification", [test_notify];
@@ -464,6 +499,7 @@ let () =
     ];
   ]
 ;;
+
 
 
 

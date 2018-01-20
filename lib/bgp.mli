@@ -61,11 +61,10 @@ type path_attr =
   | Mp_unreach_nlri
   | As4_path of asp_segment list
   | Local_pref of int
-  | Unknown of int
+  | Unknown of Cstruct.t
 
 
 type attr_t = 
-  | UNKNOWN
   | ORIGIN
   | AS_PATH
   | NEXT_HOP

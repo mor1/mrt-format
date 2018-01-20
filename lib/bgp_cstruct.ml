@@ -1,6 +1,5 @@
 [%%cenum
   type attr_t =
-    | UNKNOWN [@id 0]
     | ORIGIN [@id 1]
     | AS_PATH
     | NEXT_HOP

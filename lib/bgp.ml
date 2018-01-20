@@ -392,7 +392,7 @@ type path_attr =
   | Mp_unreach_nlri
   | As4_path of asp_segment list
   | Local_pref of int
-  | Unknown of int
+  | Unknown of Cstruct.t
 
 type path_attrs = (path_attr_flags * path_attr) list;;
 
@@ -420,7 +420,7 @@ let rec path_attrs_to_string path_attrs =
     | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
     | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
     | Local_pref p -> (sprintf "LOCAL_PREF %d" p) ^ acc
-    | Unknown tc -> sprintf "Unknown attribute with tc %d" tc
+    | Unknown _ -> sprintf "Unknown attribute"
   in
   List.fold_right f path_attrs ""
 ;;
@@ -464,37 +464,40 @@ let find_next_hop path_attrs =
 ;;
 
 let path_attr_to_attr_t = function
-  | Origin _ -> ORIGIN
-  | As_path _ -> AS_PATH
-  | Next_hop _ -> NEXT_HOP
-  | Community _ -> COMMUNITY
-  | Ext_communities -> EXT_COMMUNITIES
-  | Med _ -> MED
-  | Atomic_aggr -> ATOMIC_AGGR
-  | Aggregator -> AGGREGATOR
-  | Mp_reach_nlri -> MP_REACH_NLRI
-  | Mp_unreach_nlri -> MP_UNREACH_NLRI
-  | As4_path _ -> AS4_PATH
-  | Local_pref _ -> LOCAL_PREF
-  | Unknown _ -> UNKNOWN
+  | Origin _ -> Some ORIGIN
+  | As_path _ -> Some AS_PATH
+  | Next_hop _ -> Some NEXT_HOP
+  | Community _ -> Some COMMUNITY
+  | Ext_communities -> Some EXT_COMMUNITIES
+  | Med _ -> Some MED
+  | Atomic_aggr -> Some ATOMIC_AGGR
+  | Aggregator -> Some AGGREGATOR
+  | Mp_reach_nlri -> Some MP_REACH_NLRI
+  | Mp_unreach_nlri -> Some MP_UNREACH_NLRI
+  | As4_path _ -> Some AS4_PATH
+  | Local_pref _ -> Some LOCAL_PREF
+  | Unknown _ -> None
 ;;
 
 let path_attrs_mem attr_t path_attrs = 
-  let f (_, pa) = path_attr_to_attr_t pa = attr_t in
+  let f (_, pa) = path_attr_to_attr_t pa = Some attr_t in
   List.exists f path_attrs
 ;;
 
 let path_attrs_remove attr_t path_attrs = 
-  List.find_all (fun (_, pa) -> path_attr_to_attr_t pa <> attr_t) path_attrs 
+  List.find_all (fun (_, pa) -> path_attr_to_attr_t pa <> Some attr_t) path_attrs 
 
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
     Some (
-      if is_extlen f then sizeof_fte + get_fte_len buf
-      else sizeof_ft + get_ft_len buf
+      if is_extlen f then 
+        sizeof_fte + get_fte_len buf
+      else 
+        sizeof_ft + get_ft_len buf
     )
   in
+
   let pf buf =
     let flags = int_to_attr_flags (get_ft_flags buf) in
 
@@ -566,19 +569,22 @@ let parse_path_attrs ?(caller=Normal) buf =
         let b = Cstruct.shift buf 1 in
         raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
       else Local_pref 0
-    | Some UNKNOWN -> Unknown 0
-    | None -> Unknown (get_ft_tc h)
+    | None -> 
+      let b = Cstruct.shift buf 1 in
+      Unknown b
     in (flags, path_attr)
   in
 
   let rec loop iter acc =
     match iter () with
     | None -> acc
-    | Some ((_, pa) as v) ->
-      let typ = path_attr_to_attr_t pa in
-      if path_attrs_mem typ acc then 
-        raise (Msg_fmt_err (Parse_update_msg_err Malformed_attribute_list))
-      else loop iter (v::acc)
+    | Some ((flags, pa) as v) ->
+      match path_attr_to_attr_t pa with
+      | None -> loop iter (v::acc)
+      | Some typ ->
+        if path_attrs_mem typ acc then 
+          raise (Msg_fmt_err (Parse_update_msg_err Malformed_attribute_list))
+        else loop iter (v::acc)
   in
 
   let path_attrs = loop (Cstruct.iter lenf pf buf) [] in
@@ -980,6 +986,13 @@ let fill_attr_fte_buffer buf flags tc len =
   sizeof_fte
 ;;
 
+let fill_attr_h_buf buf flags tc len = 
+  if not flags.extlen then
+    fill_attr_ft_buffer buf flags tc len
+  else
+    fill_attr_fte_buffer buf flags tc len
+;;
+
 let len_attr_as_path_data_buffer ?(sizeof_asn=2) asp =
   let f total_len segment = 
     let set_or_seq, asn_list = 
@@ -1028,28 +1041,16 @@ let len_path_attrs_buffer path_attrs =
   let f total_len (flags, path_attr) =
     let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
     
-    let len_p, attr_t, new_flags = 
+    let len_p = 
       match path_attr with
-      | Origin origin -> 
-        1, ORIGIN, flags
-      | As_path asp ->
-        let len_p = len_attr_as_path_data_buffer asp in
-        len_p, AS_PATH, flags
-      | Next_hop ip4 -> 
-        4, NEXT_HOP, flags
-      | As4_path asp ->
-        let new_flags = {
-          optional=true;
-          transitive=flags.transitive;
-          partial=flags.partial;
-          extlen=flags.extlen;
-        } in
-        let len_p = len_attr_as_path_data_buffer ~sizeof_asn:4 asp in
-        len_p, AS4_PATH, new_flags
-      | _ -> 0, UNKNOWN, flags
+      | Origin origin -> 1
+      | As_path asp -> len_attr_as_path_data_buffer asp
+      | Next_hop ip4 -> 4
+      | As4_path asp -> len_attr_as_path_data_buffer ~sizeof_asn:4 asp
+      | _ -> 0
     in
     
-    if attr_t != UNKNOWN then total_len + len_h + len_p else total_len
+    total_len + len_h + len_p
   in
   List.fold_left f 0 path_attrs
 ;;
@@ -1057,40 +1058,46 @@ let len_path_attrs_buffer path_attrs =
 let fill_path_attrs_buffer buf path_attrs =
   let f total_len (flags, path_attr) =
     let buf_slice = Cstruct.shift buf total_len in
+    
     let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
     let buf_h, buf_p = Cstruct.split buf_slice len_h in
     
-    let len_p, attr_t, new_flags = 
-      match path_attr with
-      | Origin origin -> 
-        Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
-        1, ORIGIN, flags
-      | As_path asp ->
-        let len_p = fill_attr_as_path_data_buffer buf_p asp in
-        len_p, AS_PATH, flags
-      | Next_hop ip4 -> 
-        Cstruct.BE.set_uint32 buf_p 0 (Ipaddr.V4.to_int32 ip4);
-        4, NEXT_HOP, flags
-      | As4_path asp ->
-        let new_flags = {
-          optional=true;
-          transitive=flags.transitive;
-          partial=flags.partial;
-          extlen=flags.extlen;
-        } in
-        let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
-        len_p, AS4_PATH, new_flags
-      | _ -> 0, UNKNOWN, flags
-    in
-    
-    if attr_t != UNKNOWN then
-      let _ = if flags.extlen then
-        fill_attr_fte_buffer buf_h new_flags attr_t len_p
-      else
-        fill_attr_ft_buffer buf_h new_flags attr_t len_p
-      in
-      total_len + len_h + len_p
-    else total_len
+    (* Proceed to fill *)
+    match path_attr with
+    | Origin origin -> 
+      Cstruct.set_uint8 buf_p 0 (origin_to_int origin);
+      let _ = fill_attr_h_buf buf_h flags ORIGIN 1 in
+      total_len + 1 + len_h
+    | As_path asp ->
+      let len_p = fill_attr_as_path_data_buffer buf_p asp in
+      let _ = fill_attr_h_buf buf_h flags AS_PATH len_p in
+      total_len + len_p + len_h
+    | Next_hop ip4 -> 
+      Cstruct.BE.set_uint32 buf_p 0 (Ipaddr.V4.to_int32 ip4);
+      let _ = fill_attr_h_buf buf_h flags NEXT_HOP 4 in
+      total_len + 4 + len_h
+    | As4_path asp ->
+      let new_flags = {
+        optional=true;
+        transitive=flags.transitive;
+        partial=flags.partial;
+        extlen=flags.extlen;
+      } in
+      let len_p = fill_attr_as_path_data_buffer ~sizeof_asn:4 buf_p asp in
+      let _ = fill_attr_h_buf buf_h new_flags AS4_PATH len_p in
+      total_len + len_p + len_h
+    | Unknown buf -> 
+      (* This is a special case *)
+
+      (* Set flag *)
+      Cstruct.set_uint8 buf_slice 0 (attr_flags_to_int flags);
+
+      (* Copy content in *)
+      let tmp_buf = Cstruct.shift buf_slice 1 in
+      let len, _ = Cstruct.fillv ~src:[buf] ~dst:tmp_buf in
+      
+      total_len + len + 1
+    | _ -> total_len
   in
   List.fold_left f 0 path_attrs
 ;;
