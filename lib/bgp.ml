@@ -504,8 +504,6 @@ let is_valid_ip_addrs addr =
   not (List.mem addr invalid_list)
 ;;
 
-
-
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
     let f = get_ft_flags buf in
@@ -635,8 +633,8 @@ type update = {
 
 
 let rec nlris_to_string l_pfx = 
-  let f pfx acc = (Ipaddr.V4.Prefix.to_string pfx) ^ "; " ^ acc in
-  List.fold_right f l_pfx ""
+  let f pfx = Ipaddr.V4.Prefix.to_string pfx in
+  String.concat "; " (List.map f l_pfx)
 ;;
 
 let update_to_string u =
