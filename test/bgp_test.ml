@@ -431,7 +431,6 @@ let test_update_attr_unrecognized_wn_attr () =
 ;;
 
 let test_update_invalid_origin () = 
-
   let path_attrs = [
     ( Origin EGP);
     ( As_path [Asn_seq [1_l]]);
@@ -451,6 +450,17 @@ let test_update_invalid_origin () =
     assert false
 ;;
 
+let test_path_attrs_to_string () =
+  let path_attrs = [
+    As_path [Asn_set [5_l; 1_l; 2_l]];
+    Origin EGP;
+    Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in
+  Printf.printf "%s\n" (path_attrs_to_string path_attrs)
+;;
+
+
+
 let () =
   Printexc.record_backtrace true;
 
@@ -461,6 +471,7 @@ let () =
       test_case "test find_next_hop" `Slow test_find_next_hop;
       test_case "test path_attrs_mem" `Slow test_path_attrs_mem;
       test_case "test path_attrs_remove" `Slow test_path_attrs_remove;
+      test_case "test path_attrs_to_string" `Slow test_path_attrs_to_string;
     ];
     "update", [
       test_normal_update; 

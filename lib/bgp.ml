@@ -303,23 +303,20 @@ let parse_as4path buf =
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
 
 let asp_segments_to_string asp_segments =
-  let f segment acc =
+  let f segment =
     let rec seq_to_string asn_list = 
-      let f v acc = sprintf "%ld <- %s" v acc in
-      List.fold_right f asn_list ""
+      let f v = sprintf "%ld" v in
+      String.concat " <- " (List.map f asn_list)
     in 
     let rec set_to_string asn_list =
-      let f v acc = sprintf "%ld, %s" v acc in
-      List.fold_right f asn_list ""
+      let f v = sprintf "%ld" v in
+      String.concat "; " (List.map f asn_list)
     in
-    let s = 
-      match segment with 
-      | Asn_set asn_list -> sprintf "[%s])" (set_to_string asn_list)
-      | Asn_seq asn_list -> sprintf "%s" (seq_to_string asn_list)
-    in
-    sprintf "%s <- %s" s acc
+    match segment with 
+    | Asn_set asn_list -> sprintf "[%s]" (set_to_string (List.sort Int32.compare asn_list))
+    | Asn_seq asn_list -> sprintf "%s" (seq_to_string asn_list)
   in
-  List.fold_right f asp_segments ""
+  String.concat "<-" (List.map f asp_segments)
 ;;
 
 let parse_aspath buf =
@@ -394,44 +391,8 @@ type path_attr =
   | Local_pref of int32
   | Unknown of path_attr_flags * Cstruct.t
 
-type path_attrs = path_attr list;;
+type path_attrs = path_attr list
 
-let rec path_attrs_to_string path_attrs = 
-  let f path_attr acc =
-    match path_attr with 
-    | Origin v ->
-      sprintf "ORIGIN(%s); %s" (origin_to_string v) acc
-    | As_path v ->
-      sprintf "AS_PATH(%s); %s"
-        (asp_segments_to_string v) acc
-    | As4_path v ->
-      sprintf "AS4_PATH(%s); %s"
-        (asp_segments_to_string v) acc
-    | Next_hop v ->
-      sprintf "NEXT_HOP(%s); %s"
-        (Ipaddr.V4.to_string v) acc
-    | Community v ->
-      sprintf "COMMUNITY(%ld:%ld); %s"
-        (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) acc
-    | Ext_communities -> "EXT_COMMUNITIES; " ^ acc
-    | Med v -> sprintf "MED(%ld); %s" v acc
-    | Atomic_aggr -> "ATOMIC_AGGR; " ^ acc
-    | Aggregator -> "AGGREGATOR; " ^ acc
-    | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
-    | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
-    | Local_pref p -> (sprintf "LOCAL_PREF %ld" p) ^ acc
-    | Unknown _ -> sprintf "Unknown attribute"
-  in
-  List.fold_right f path_attrs ""
-;;
-
-let is_valid_ip_addrs addr = 
-  let invalid_list = [
-    Ipaddr.V4.of_string_exn "0.0.0.0";
-    Ipaddr.V4.of_string_exn "255.255.255.255";
-  ] in
-  not (List.mem addr invalid_list)
-;;
 
  let find_origin path_attrs =
   let rec loop = function
@@ -486,6 +447,64 @@ let path_attrs_mem attr_t path_attrs =
 
 let path_attrs_remove attr_t path_attrs = 
   List.find_all (fun pa -> path_attr_to_attr_t pa <> Some attr_t) path_attrs 
+
+
+let rec path_attrs_to_string path_attrs = 
+  let path_attrs = 
+    (* Extract typ code *)
+    let f pa = 
+      match path_attr_to_attr_t pa with
+      | None -> 1000, pa
+      | Some typ -> attr_t_to_int typ, pa
+    in
+    let tmp = List.map f path_attrs in
+  
+    (* Sort using type code *)
+    let compare (tc_this, _) (tc_other, _) = tc_this - tc_other in
+    let sorted = List.sort compare tmp in
+
+    (* Extract *)
+    List.map (fun (_, pa) -> pa) sorted
+  in
+  
+
+  let f path_attr acc =
+    match path_attr with 
+    | Origin v ->
+      sprintf "ORIGIN(%s); %s" (origin_to_string v) acc
+    | As_path v ->
+      sprintf "AS_PATH(%s); %s"
+        (asp_segments_to_string v) acc
+    | As4_path v ->
+      sprintf "AS4_PATH(%s); %s"
+        (asp_segments_to_string v) acc
+    | Next_hop v ->
+      sprintf "NEXT_HOP(%s); %s"
+        (Ipaddr.V4.to_string v) acc
+    | Community v ->
+      sprintf "COMMUNITY(%ld:%ld); %s"
+        (v >>> 16 &&& 0xffff_l) (v &&& 0xffff_l) acc
+    | Ext_communities -> "EXT_COMMUNITIES; " ^ acc
+    | Med v -> sprintf "MED(%ld); %s" v acc
+    | Atomic_aggr -> "ATOMIC_AGGR; " ^ acc
+    | Aggregator -> "AGGREGATOR; " ^ acc
+    | Mp_reach_nlri -> "MP_REACH_NLRI; " ^ acc
+    | Mp_unreach_nlri -> "MP_UNREACH_NLRI; " ^ acc
+    | Local_pref p -> (sprintf "LOCAL_PREF %ld" p) ^ acc
+    | Unknown _ -> sprintf "Unknown attribute"
+  in
+  List.fold_right f path_attrs ""
+;;
+
+let is_valid_ip_addrs addr = 
+  let invalid_list = [
+    Ipaddr.V4.of_string_exn "0.0.0.0";
+    Ipaddr.V4.of_string_exn "255.255.255.255";
+  ] in
+  not (List.mem addr invalid_list)
+;;
+
+
 
 let parse_path_attrs ?(caller=Normal) buf =
   let lenf buf =
@@ -1329,3 +1348,4 @@ let gen_msg = function
 ;;
 
 let get_msg_len buf = get_h_len buf
+
