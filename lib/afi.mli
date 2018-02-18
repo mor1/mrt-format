@@ -20,6 +20,7 @@ type tc =
   | UNKNOWN of int
 
 val int_to_tc: int -> tc
+val tc_to_int: tc -> int
 val tc_to_string: tc -> string
 
 val sizeof_ip4: int

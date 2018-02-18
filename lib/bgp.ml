@@ -971,6 +971,53 @@ let fill_header_buffer buf len typ =
 
 let len_open_buffer (o: opent) = sizeof_h + sizeof_opent
 
+let fill_cap_buffer buf cap_list =
+  let f len cap =
+    let buf_slice = Cstruct.shift buf len in
+    match cap with
+    | Mp_ext (afi, safi) ->
+      Tlv.set_tl_t buf_slice (cc_to_int MP_EXT);
+      Tlv.set_tl_l buf_slice 4;
+      let buf_v = Cstruct.shift buf Tlv.sizeof_tl in
+      set_mp_ext_afi buf_v (Afi.tc_to_int afi);
+      set_mp_ext_safi buf_v (Safi.tc_to_int safi);
+      len + Tlv.sizeof_tl + 4
+    | Route_refresh ->
+      Tlv.set_tl_t buf_slice (cc_to_int ROUTE_REFRESH);
+      Tlv.set_tl_l buf_slice 0;
+      len + Tlv.sizeof_tl
+    | Asn4_support asn ->
+      Tlv.set_tl_t buf_slice (cc_to_int AS4_SUPPORT);
+      Tlv.set_tl_l buf_slice 4;
+      Cstruct.BE.set_uint32 buf_slice 2 asn;
+      len + Tlv.sizeof_tl + 4
+    | Ecapability buf -> len
+  in
+  List.fold_left f 0 cap_list
+;;
+
+let fill_opt_buffer buf opts =
+  let f len opt =
+    let buf_slice = Cstruct.shift buf len in
+    match opt with
+    | Reserved -> 
+      Tlv.set_tl_t buf_slice (oc_to_int RESERVED);
+      Tlv.set_tl_l buf_slice 0;
+      Tlv.sizeof_tl + len
+    | Authentication ->
+      Tlv.set_tl_t buf_slice (oc_to_int AUTHENTICATION);
+      Tlv.set_tl_l buf_slice 0;
+      Tlv.sizeof_tl + len
+    | Capability cap_list ->
+      let buf_tl, buf_v = Cstruct.split buf_slice Tlv.sizeof_tl in
+      let len_v = fill_cap_buffer buf_v cap_list in
+      Tlv.set_tl_t buf_tl (oc_to_int CAPABILITY);
+      Tlv.set_tl_l buf_tl len_v;
+      Tlv.sizeof_tl + len_v + len
+  in
+  List.fold_left f 0 opts
+;;
+
 let fill_open_buffer buf (o: opent) =
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
   let buf_opent, buf_opt = Cstruct.split buf_p sizeof_opent in
