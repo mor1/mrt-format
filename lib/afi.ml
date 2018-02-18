@@ -17,17 +17,23 @@
 open Printf
 open Operators
 
-type tc = IP4 | IP6
+type tc = 
+  | IP4 
+  | IP6
+  | UNKNOWN of int
 let tc_to_int = function
   | IP4 -> 1
   | IP6 -> 2
+  | UNKNOWN v -> v
 and int_to_tc = function
   | 1 -> IP4
   | 2 -> IP6
-  | n -> invalid_arg (sprintf "Afi.int_to_tc (%d)" n)
+  | v -> UNKNOWN v
+
 and tc_to_string = function
   | IP4 -> "IPv4"
   | IP6 -> "IPv6"
+  | UNKNOWN v -> sprintf "UNKNOWN %d" v
 
 [%%cstruct
   type ip4 = {

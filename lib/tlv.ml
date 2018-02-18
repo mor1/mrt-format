@@ -23,6 +23,6 @@
 ]
 
 let get_tlv buf =
-  let tlv,bs = Cstruct.split buf (sizeof_tl + get_tl_l buf) in
-  let tl,v = Cstruct.split tlv sizeof_tl in
-  (get_tl_t tl),v, bs
+  let tlv, rest = Cstruct.split buf (sizeof_tl + get_tl_l buf) in
+  let tl, v = Cstruct.split tlv sizeof_tl in
+  (get_tl_t tl), v, rest

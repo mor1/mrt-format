@@ -140,32 +140,63 @@ let get_partial buf =
 
 type capability =
   | Mp_ext of Afi.tc * Safi.tc
+  | Route_refresh
+  | Asn4_support of int32
   | Ecapability of Cstruct.t
 
 
-let capability_to_string = function
-  | Mp_ext (a,s) ->
-    sprintf "MP_EXT(%s,%s)" (Afi.tc_to_string a) (Safi.tc_to_string s)
-  | Ecapability _ -> "UNKNOWN_CAPABILITY"
+let capability_to_string cs = 
+  let f = function
+    | Mp_ext (a,s) ->
+      sprintf "MP_EXT(%s,%s)" (Afi.tc_to_string a) (Safi.tc_to_string s)
+    | Route_refresh -> "Route refresh"
+    | Asn4_support asn -> sprintf "Asn4 support %ld" asn
+    | Ecapability _ -> "UNKNOWN_CAPABILITY"
+  in
+  String.concat ";" (List.map f cs)
+;;
 
-let parse_capability buf = function
-  | Some MP_EXT -> Mp_ext (
-    get_mp_ext_afi buf |> Afi.int_to_tc,
-    get_mp_ext_safi buf |> Safi.int_to_tc)
-  | Some ROUTE_REFRESH
-  | Some OUTBOUND_ROUTE_FILTERING
-  | Some MULTIPLE_ROUTES_DESTINATION
-  | Some EXT_HEXTHOP_ENC
-  | Some GRACEFUL_RESTART
-  | Some AS4_SUPPORT
-  | Some ENHANCED_REFRESH
-  | None
-    -> Ecapability buf
+let parse_capability buf = 
+  let lenf buf = 
+    Parser_log.debug (fun m -> m "checkpoint2: buf len %d" (Cstruct.len buf));
+    if Cstruct.len buf = 0 then None
+    else begin
+      Parser_log.debug (fun m -> m "checkpoint2: cap length %d" (Tlv.get_tl_l buf));
+      Some (Tlv.get_tl_l buf + Tlv.sizeof_tl)
+    end
+  in
+
+  let pf buf =
+    let buf_v = Cstruct.shift buf Tlv.sizeof_tl in
+    match Tlv.get_tl_t buf |> int_to_cc with
+    | Some MP_EXT -> 
+      Mp_ext (
+        get_mp_ext_afi buf_v |> Afi.int_to_tc,
+        get_mp_ext_safi buf_v |> Safi.int_to_tc
+      )
+    | Some ROUTE_REFRESH -> Route_refresh
+    | Some AS4_SUPPORT -> 
+      Parser_log.debug (fun m -> m "checkpoint3");
+      Asn4_support (Cstruct.BE.get_uint32 buf_v 0)
+    | Some OUTBOUND_ROUTE_FILTERING
+    | Some MULTIPLE_ROUTES_DESTINATION
+    | Some EXT_HEXTHOP_ENC
+    | Some GRACEFUL_RESTART
+    | Some ENHANCED_REFRESH
+    | None
+      -> Ecapability buf
+  in
+
+  let iter = Cstruct.iter lenf pf buf in
+  Parser_log.debug (fun m -> m "checkpoint4");
+  cstruct_iter_to_list iter
+;;
+
 
 type opt_param =
   | Reserved (* wtf? *)
   | Authentication (* deprecated, rfc 4271 *)
-  | Capability of capability
+  | Capability of capability list
 
 
 let opt_param_to_string = function
@@ -839,29 +870,32 @@ let parse ?(caller=Normal) buf =
       if (msg_len < 29) then
         raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));
       
+
       let opt_len = get_opent_opt_len payload in
 
-      let m, opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
+      let buf_opent, buf_opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
+      Parser_log.debug (fun m -> m "payload length: %d, opt_len %d, opt_buf_len %d" (Cstruct.len payload) opt_len (Cstruct.len buf_opts));
+
       let opts =
-        let rec aux len acc bs =
+        let rec aux len acc buf =
           if len = opt_len then acc else (
-            let t, opt, bs = Tlv.get_tlv bs in
-            let opt = match int_to_oc t with
+            let opt_tc, buf_opt, buf_rest = Tlv.get_tlv buf in
+            let opt = match int_to_oc opt_tc with
               | None -> raise (Msg_fmt_err (Parse_open_msg_err Unsupported_optional_parameter))
               | Some RESERVED -> Reserved
               | Some AUTHENTICATION -> Authentication
               | Some CAPABILITY ->
-                let t,c, _ = Tlv.get_tlv bs in
-                Capability (parse_capability c (int_to_cc t))
-            in aux (len + Tlv.sizeof_tl + Tlv.get_tl_l bs) (opt :: acc) bs
+                Parser_log.debug (fun m -> m "checkpoint 1");
+                Capability (parse_capability buf_opt)
+            in aux (len + Tlv.sizeof_tl + Cstruct.len buf_opt) (opt::acc) buf_rest
           )
-        in aux 0 [] opts
+        in aux 0 [] buf_opts
       in
       let opent = { 
-        version = get_opent_version m;
-        local_asn = Int32.of_int (get_opent_local_asn m);
-        hold_time = get_opent_hold_time m;
-        local_id = Ipaddr.V4.of_int32 (get_opent_local_id m);
+        version = get_opent_version buf_opent;
+        local_asn = Int32.of_int (get_opent_local_asn buf_opent);
+        hold_time = get_opent_hold_time buf_opent;
+        local_id = Ipaddr.V4.of_int32 (get_opent_local_id buf_opent);
         options = opts;
       } in
       Open opent
@@ -919,7 +953,10 @@ let parse_buffer_to_t buf =
   with
   | Msg_fmt_err err -> Error (Msg_fmt_error err)
   | Notif_fmt_err err -> Error (Notif_fmt_error err)
-  | Invalid_argument str -> Error Parsing_error
+  | Invalid_argument str -> 
+    Cstruct.hexdump buf;
+    Parser_log.err (fun m -> m "%s" str); 
+    Error Parsing_error
 ;;
 
 let len_header_buffer = sizeof_h

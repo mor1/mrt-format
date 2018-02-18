@@ -20,12 +20,14 @@ type asn =
 
 type capability =
   | Mp_ext of Afi.tc * Safi.tc
+  | Route_refresh
+  | Asn4_support of int32
   | Ecapability of Cstruct.t
 
 type opt_param =
   | Reserved (* wtf? *)
   | Authentication (* deprecated, rfc 4271 *)
-  | Capability of capability
+  | Capability of capability list
 
 type opent = {
   version: int;

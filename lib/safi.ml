@@ -16,14 +16,21 @@
 
 open Printf
 
-type tc = UNICAST | MULTICAST
+type tc = 
+  | UNICAST 
+  | MULTICAST 
+  | UNKNOWN of int
+
 let tc_to_int = function
   | UNICAST -> 1
   | MULTICAST -> 2
+  | UNKNOWN v -> v
 and int_to_tc = function
   | 1 -> UNICAST
   | 2 -> MULTICAST
-  | n -> invalid_arg (sprintf "Safi.int_to_tc (%d)" n)
+  | v -> UNKNOWN v
+
 and tc_to_string = function
   | UNICAST -> "UNICAST"
   | MULTICAST -> "MULTICAST"
+  | UNKNOWN v -> sprintf "UNKNOWN %d" v
