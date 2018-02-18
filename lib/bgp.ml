@@ -139,8 +139,8 @@ let get_partial buf =
 
 
 type capability =
-| Mp_ext of Afi.tc * Safi.tc
-| Ecapability of Cstruct.t
+  | Mp_ext of Afi.tc * Safi.tc
+  | Ecapability of Cstruct.t
 
 
 let capability_to_string = function
@@ -840,13 +840,18 @@ let parse ?(caller=Normal) buf =
         raise (Msg_fmt_err (Parse_msg_h_err (Bad_message_length msg_len)));
       
       let opt_len = get_opent_opt_len payload in
+
+      if opt_len > 0 then
+        raise (Msg_fmt_err (Parse_open_msg_err Unsupported_optional_parameter))
+      else
+
       let m, opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
       let opts =
         let rec aux len acc bs =
           if opt_len = opt_len then acc else (
             let t, opt, bs = Tlv.get_tlv bs in
             let opt = match int_to_oc t with
-              | None -> failwith "bad option"
+              | None -> raise (Msg_fmt_err (Parse_open_msg_err Unsupported_optional_parameter))
               | Some RESERVED -> Reserved
               | Some AUTHENTICATION -> Authentication
               | Some CAPABILITY ->
