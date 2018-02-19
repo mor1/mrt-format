@@ -124,9 +124,12 @@ let test_parse_gen_combo t =
   let msg2 = gen_msg t2 in
 
   Printf.printf "%s \n" (to_string t);
+  Cstruct.hexdump (gen_msg t);
   Printf.printf "%s \n" (to_string t2);
+  Cstruct.hexdump (gen_msg t2);
   
   assert (Cstruct.equal msg1 msg2);
+  assert (t = t2);
   Printf.printf "Test pass: %s\n" (Bgp.to_string t2)
 ;;
 
@@ -196,7 +199,7 @@ let test_update_only_nlri =
 
 let test_update_with_unknown_attr () =
   let flags = {
-    transitive = false;
+    transitive = true;
     optional = true;
     partial = false;
     extlen = false;
@@ -459,6 +462,20 @@ let test_path_attrs_to_string () =
   Printf.printf "%s\n" (path_attrs_to_string path_attrs)
 ;;
 
+let test_parse_gen_capabilities () = 
+  let o = {
+    version=4;
+    local_asn = 2_l;
+    hold_time=180;
+    local_id = Ipaddr.V4.of_string_exn "172.19.0.3";
+    options= [ Capability [ Mp_ext(Afi.IP4, Safi.UNICAST)] ]
+  } in
+  Cstruct.hexdump (gen_msg (Open o));
+  test_parse_gen_combo (Open o)
+;;
+
+
+
 
 
 let () =
@@ -479,7 +496,10 @@ let () =
       test_update_only_withdrawn;
       test_case "test update_with_unknown_attr" `Slow test_update_with_unknown_attr;
     ];
-    "open", [test_open];
+    "open", [
+      test_open;
+      test_case "test parse and gen capabilities" `Slow test_parse_gen_capabilities;
+    ];
     "keepalive", [test_keepalive];
     "notification", [test_notify];
     "len", [

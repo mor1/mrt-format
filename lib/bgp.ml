@@ -873,6 +873,10 @@ let parse ?(caller=Normal) buf =
 
       let opt_len = get_opent_opt_len payload in
 
+      (* if opt_len > 0 then
+        raise (Msg_fmt_err (Parse_open_msg_err Unsupported_optional_parameter))
+      else *)
+
       let buf_opent, buf_opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
       Parser_log.debug (fun m -> m "payload length: %d, opt_len %d, opt_buf_len %d" (Cstruct.len payload) opt_len (Cstruct.len buf_opts));
 
@@ -971,7 +975,7 @@ let fill_header_buffer buf len typ =
 
 let len_open_buffer (o: opent) = sizeof_h + sizeof_opent
 
-let fill_cap_buffer buf cap_list =
+let fill_caps_buffer buf cap_list =
   let f len cap =
     let buf_slice = Cstruct.shift buf len in
     match cap with
@@ -996,7 +1000,7 @@ let fill_cap_buffer buf cap_list =
   List.fold_left f 0 cap_list
 ;;
 
-let fill_opt_buffer buf opts =
+let fill_opts_buffer buf opts =
   let f len opt =
     let buf_slice = Cstruct.shift buf len in
     match opt with
@@ -1010,7 +1014,7 @@ let fill_opt_buffer buf opts =
       Tlv.sizeof_tl + len
     | Capability cap_list ->
       let buf_tl, buf_v = Cstruct.split buf_slice Tlv.sizeof_tl in
-      let len_v = fill_cap_buffer buf_v cap_list in
+      let len_v = fill_caps_buffer buf_v cap_list in
       Tlv.set_tl_t buf_tl (oc_to_int CAPABILITY);
       Tlv.set_tl_l buf_tl len_v;
       Tlv.sizeof_tl + len_v + len
@@ -1020,14 +1024,17 @@ let fill_opt_buffer buf opts =
 
 let fill_open_buffer buf (o: opent) =
   let buf_h, buf_p = Cstruct.split buf sizeof_h in
-  let buf_opent, buf_opt = Cstruct.split buf_p sizeof_opent in
-  let _ = fill_header_buffer buf_h (sizeof_h + sizeof_opent) OPEN in
+  let buf_opent, buf_opts = Cstruct.split buf_p sizeof_opent in
   set_opent_version buf_opent o.version;
   set_opent_local_asn buf_opent (Int32.to_int o.local_asn);
   set_opent_hold_time buf_opent o.hold_time;
   set_opent_local_id buf_opent (Ipaddr.V4.to_int32 o.local_id);
-  set_opent_opt_len buf_opent 0;
-  sizeof_h + sizeof_opent
+  
+  let len_opts = fill_opts_buffer buf_opts o.options in
+  set_opent_opt_len buf_opent len_opts;
+
+  let _ = fill_header_buffer buf_h (sizeof_h + sizeof_opent + len_opts) OPEN in
+  sizeof_h + sizeof_opent + len_opts
 ;;
   
   
