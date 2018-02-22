@@ -41,11 +41,14 @@ let rec cstruct_iter_to_list iter =
   | None -> []
 ;;
 
-type asn = Asn of int | Asn4 of int32
+type asn = 
+  | Asn of int 
+  | Asn4 of int32
 
 let asn_to_int = function
   | Asn a -> a
   | Asn4 a -> Int32.to_int a
+;;
 
 let asn_to_string = function
   | Asn a -> sprintf "%d" a
@@ -135,25 +138,29 @@ let get_partial buf =
   in (ip,l)
 ;;
 
-
-
-
 type capability =
   | Mp_ext of Afi.tc * Safi.tc
   | Route_refresh
   | Asn4_support of int32
   | Ecapability of Cstruct.t
 
-
 let capability_to_string cs = 
+  let cap_to_tc = function
+    | Mp_ext _ -> cc_to_int MP_EXT
+    | Route_refresh -> cc_to_int ROUTE_REFRESH
+    | Asn4_support _ -> cc_to_int AS4_SUPPORT
+    | Ecapability _ -> 100
+  in
+  let sorted = List.sort (fun a b -> (cap_to_tc a) - (cap_to_tc b)) cs in
+
   let f = function
-    | Mp_ext (a,s) ->
+    | Mp_ext (a, s) ->
       sprintf "MP_EXT(%s,%s)" (Afi.tc_to_string a) (Safi.tc_to_string s)
     | Route_refresh -> "Route refresh"
     | Asn4_support asn -> sprintf "Asn4 support %ld" asn
     | Ecapability _ -> "UNKNOWN_CAPABILITY"
   in
-  String.concat ";" (List.map f cs)
+  String.concat ";" (List.map f sorted)
 ;;
 
 let parse_capability buf = 
@@ -199,10 +206,20 @@ type opt_param =
   | Capability of capability list
 
 
-let opt_param_to_string = function
-  | Reserved -> "RESERVED"
-  | Authentication -> "AUTH"
-  | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
+let opt_param_to_string opts = 
+  let to_tc = function
+    | Reserved -> oc_to_int RESERVED
+    | Authentication -> oc_to_int AUTHENTICATION
+    | Capability c -> oc_to_int CAPABILITY
+  in
+  let sorted = List.sort (fun a b -> (to_tc a) - (to_tc b)) opts in
+  
+  let f = function
+    | Reserved -> "RESERVED"
+    | Authentication -> "AUTH"
+    | Capability c -> sprintf "CAP(%s)" (capability_to_string c)
+  in
+  String.concat "; " (List.map f sorted)
 ;;
 
 type opent = {
@@ -217,7 +234,7 @@ let opent_to_string o =
   sprintf "version:%d, my_as:%s, hold_time:%d, bgp_id:%s, options:[%s]"
           o.version (Int32.to_string o.local_asn) o.hold_time 
           (Ipaddr.V4.to_string o.local_id)
-          (o.options ||> opt_param_to_string |> String.concat "; ")
+          (o.options |> opt_param_to_string)
 ;;
 
 let is_optional f = is_bit 7 f
@@ -1438,4 +1455,131 @@ let gen_msg = function
 ;;
 
 let get_msg_len buf = get_h_len buf
+
+let msg_to_tc = function
+  | Open _ -> OPEN
+  | Update _ -> UPDATE
+  | Keepalive -> KEEPALIVE
+  | Notification _ -> NOTIFICATION
+;;
+
+let rec list_pair l1 l2 =
+  if List.length l1 <> List.length l2 then assert false
+  else if l1 = [] then []
+  else (List.hd l1, List.hd l2)::(list_pair (List.tl l1) (List.tl l2))
+;;
+
+let list_equal l1 l2 elt_equal = 
+  if List.length l1 <> List.length l2 then begin
+    false
+  end
+  else if not (List.for_all (fun x -> List.exists (fun y -> elt_equal x y) l2) l1) then begin 
+    false
+  end
+  else List.for_all (fun x -> List.exists (fun y -> elt_equal x y) l1) l2
+;;
+
+let cap_equal cap1 cap2 =
+  match cap1 with
+  | Mp_ext _ 
+  | Route_refresh
+  | Asn4_support _ -> 
+    cap1 = cap2
+  | Ecapability buf1 -> begin
+    match cap2 with
+    | Ecapability buf2 -> Cstruct.equal buf1 buf2
+    | _ -> false
+  end
+;;
+
+let opt_equal opt1 opt2 =
+  match opt1 with
+  | Reserved | Authentication -> opt1 = opt2
+  | Capability cap_list1 -> begin
+    match opt2 with
+    | Reserved | Authentication -> false
+    | Capability cap_list2 ->
+      list_equal cap_list1 cap_list2 cap_equal
+  end
+;;
+
+let path_attr_equal attr1 attr2 =
+  match attr1 with 
+  | Origin v1 -> attr2 = Origin v1
+  | As_path asp1 -> begin
+    match attr2 with
+    | As_path asp2 ->
+      if List.length asp1 <> List.length asp2 then false
+      else
+        let f (s1, s2) = 
+          match s1 with
+          | Asn_set l1 -> begin
+            match s2 with
+            | Asn_set l2 -> list_equal l1 l2 (fun x y -> x = y)
+            | Asn_seq _ -> false
+          end
+          | Asn_seq l1 -> s2 = Asn_seq l1
+        in
+        List.for_all f (list_pair asp1 asp2) 
+    | _ -> false
+  end
+  | Next_hop _ 
+  | Community _
+  | Ext_communities
+  | Med _
+  | Atomic_aggr
+  | Aggregator
+  | Mp_reach_nlri
+  | Mp_unreach_nlri 
+  | Local_pref _ -> attr1 = attr2
+  | As4_path asp1 -> begin
+    match attr2 with
+    | As_path asp2 ->
+      if List.length asp1 <> List.length asp2 then false
+      else
+        let f (s1, s2) = 
+          match s1 with
+          | Asn_set l1 -> begin
+            match s2 with
+            | Asn_set l2 -> list_equal l1 l2 (fun x y -> x = y)
+            | Asn_seq _ -> false
+          end
+          | Asn_seq l1 -> s2 = Asn_seq l1
+        in
+        List.for_all f (list_pair asp1 asp2) 
+    | _ -> false
+  end
+  | Unknown (flags1, buf1) -> begin
+    match attr2 with
+    | Unknown (flags2, buf2) ->
+      Cstruct.equal buf1 buf2
+    | _ -> false
+  end
+;;
+
+let equal msg1 msg2 = 
+  match msg1 with
+  | Keepalive -> msg2 = Keepalive
+  | Update u1 -> begin
+    match msg2 with
+    | Update u2 -> 
+      list_equal u1.withdrawn u2.withdrawn (fun x y -> x = y) &&
+      list_equal u1.nlri u2.nlri (fun x y -> x = y) &&
+      list_equal u1.path_attrs u2.path_attrs path_attr_equal
+    | _ -> false
+  end
+  | Open o1 -> begin
+    match msg2 with
+    | Open o2 ->
+      o1.version = o2.version &&
+      o1.hold_time = o2.hold_time &&
+      o1.local_id = o2.local_id &&
+      o1.local_asn = o2.local_asn &&
+      list_equal o1.options o2.options opt_equal 
+    | _ -> false
+  end
+  | Notification _ -> msg1 = msg2
+;;
+
+
 

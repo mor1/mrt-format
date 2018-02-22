@@ -29,7 +29,6 @@ let attr_flags_to_int {optional; transitive; partial; extlen} =
   !n_ref
 ;;
 
-
 let test_find_origin () =
   let path_attrs = [
     Origin EGP;
@@ -57,17 +56,13 @@ let test_find_origin () =
 ;;
 
 let test_find_aspath () =
-
   let path_attrs = [
-    ( Origin EGP);
-    ( As_path [Asn_seq [1_l]]);
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
   ] in
   assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
 
-
-  let path_attrs = [
-    ( Origin EGP);
-  ] in
+  let path_attrs = [ Origin EGP; ] in
   assert (find_aspath path_attrs = None);
 ;;
 
@@ -75,9 +70,9 @@ let test_find_next_hop () =
 
   let id = Ipaddr.V4.of_string_exn "172.19.10.1" in
   let path_attrs = [
-    ( Origin EGP);
-    ( As_path [Asn_seq [1_l]]);
-    ( Next_hop id)
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
+    Next_hop id;
   ] in
   assert (find_next_hop path_attrs = Some id);
 
@@ -121,15 +116,8 @@ let test_parse_gen_combo t =
       failwith (parse_error_to_string err)
     | Ok v -> v 
   in
-  let msg2 = gen_msg t2 in
-
-  Printf.printf "%s \n" (to_string t);
-  Cstruct.hexdump (gen_msg t);
-  Printf.printf "%s \n" (to_string t2);
-  Cstruct.hexdump (gen_msg t2);
+  assert (Bgp.equal t t2);
   
-  assert (Cstruct.equal msg1 msg2);
-  assert (t = t2);
   Printf.printf "Test pass: %s\n" (Bgp.to_string t2)
 ;;
 
@@ -470,10 +458,26 @@ let test_parse_gen_capabilities () =
     local_id = Ipaddr.V4.of_string_exn "172.19.0.3";
     options= [ Capability [ Mp_ext(Afi.IP4, Safi.UNICAST)] ]
   } in
-  Cstruct.hexdump (gen_msg (Open o));
-  test_parse_gen_combo (Open o)
-;;
+  test_parse_gen_combo (Open o);
 
+  let o = {
+    version=4;
+    local_asn = 2_l;
+    hold_time=180;
+    local_id = Ipaddr.V4.of_string_exn "172.19.0.3";
+    options= [ Capability [ Mp_ext(Afi.IP4, Safi.UNICAST); Route_refresh ] ]
+  } in
+  test_parse_gen_combo (Open o);
+
+  let o = {
+    version=4;
+    local_asn = 2_l;
+    hold_time=180;
+    local_id = Ipaddr.V4.of_string_exn "172.19.0.3";
+    options= [ Capability [Mp_ext(Afi.IP4, Safi.UNICAST)]; Capability [Route_refresh] ]
+  } in
+  test_parse_gen_combo (Open o);
+;;
 
 
 

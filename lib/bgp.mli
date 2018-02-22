@@ -186,3 +186,5 @@ val path_attrs_remove : attr_t -> path_attrs -> path_attrs
 
 (* For debugging *)
 val parse_error_to_string : parse_error -> string
+
+val equal: t -> t -> bool
