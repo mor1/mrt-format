@@ -165,10 +165,8 @@ let capability_to_string cs =
 
 let parse_capability buf = 
   let lenf buf = 
-    Parser_log.debug (fun m -> m "checkpoint2: buf len %d" (Cstruct.len buf));
     if Cstruct.len buf = 0 then None
     else begin
-      Parser_log.debug (fun m -> m "checkpoint2: cap length %d" (Tlv.get_tl_l buf));
       Some (Tlv.get_tl_l buf + Tlv.sizeof_tl)
     end
   in
@@ -183,7 +181,6 @@ let parse_capability buf =
       )
     | Some ROUTE_REFRESH -> Route_refresh
     | Some AS4_SUPPORT -> 
-      Parser_log.debug (fun m -> m "checkpoint3");
       Asn4_support (Cstruct.BE.get_uint32 buf_v 0)
     | Some OUTBOUND_ROUTE_FILTERING
     | Some MULTIPLE_ROUTES_DESTINATION
@@ -195,7 +192,6 @@ let parse_capability buf =
   in
 
   let iter = Cstruct.iter lenf pf buf in
-  Parser_log.debug (fun m -> m "checkpoint4");
   cstruct_iter_to_list iter
 ;;
 
@@ -895,7 +891,6 @@ let parse ?(caller=Normal) buf =
       else *)
 
       let buf_opent, buf_opts = Cstruct.split payload (msg_len - sizeof_h - opt_len) in
-      Parser_log.debug (fun m -> m "payload length: %d, opt_len %d, opt_buf_len %d" (Cstruct.len payload) opt_len (Cstruct.len buf_opts));
 
       let opts =
         let rec aux len acc buf =
@@ -906,7 +901,6 @@ let parse ?(caller=Normal) buf =
               | Some RESERVED -> Reserved
               | Some AUTHENTICATION -> Authentication
               | Some CAPABILITY ->
-                Parser_log.debug (fun m -> m "checkpoint 1");
                 Capability (parse_capability buf_opt)
             in aux (len + Tlv.sizeof_tl + Cstruct.len buf_opt) (opt::acc) buf_rest
           )
