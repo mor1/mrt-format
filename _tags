@@ -1,4 +1,5 @@
-true: package(logs), package(cstruct), package(cstruct.ppx), package(sexplib), package(alcotest), package(lwt), package(cstruct-lwt), debug
+true: package(logs), package(cstruct), package(cstruct.ppx), package(sexplib), package(alcotest), package(lwt), package(cstruct-lwt)
 true: package(ipaddr)
 "lib" : include
 "test": include
+true: debug

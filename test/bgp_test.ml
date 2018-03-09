@@ -479,6 +479,32 @@ let test_parse_gen_capabilities () =
   test_parse_gen_combo (Open o);
 ;;
 
+let test_parse_pattrs () =
+  let path_attrs = [
+    Origin EGP;
+    Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+    As_path [Asn_seq [1_l; 3_l;]; Asn_set [7_l; 3_l;]];
+  ] in
+
+  let path_attrs2 = [
+    Origin EGP;
+    As_path [Asn_seq [1_l; 3_l;]; Asn_set [3_l; 7_l]];
+    Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+  ] in
+
+  let withdrawn = [] in
+  let nlri = [ Prefix.make 24 (Ipaddr.V4.of_string_exn "172.16.84.0"); ] in
+  
+  let update1 = { withdrawn; path_attrs; nlri; } in
+  let update2 = { withdrawn; path_attrs = path_attrs2; nlri; } in
+
+  match parse_buffer_to_t @@ gen_update update1 with
+  | Error _ -> assert false
+  | Ok t -> assert (t = Update update2)
+;;
+  
+
+
 
 
 
@@ -499,6 +525,7 @@ let () =
       test_update_only_nlri; 
       test_update_only_withdrawn;
       test_case "test update_with_unknown_attr" `Slow test_update_with_unknown_attr;
+      test_case "test parse_path_attrs" `Slow test_parse_pattrs;
     ];
     "open", [
       test_open;

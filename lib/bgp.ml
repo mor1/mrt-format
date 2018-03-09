@@ -341,7 +341,9 @@ let parse_as4path buf =
     match int_to_aspt t with
     | None -> 
       raise (Msg_fmt_err (Parse_update_msg_err Malformed_as_path))
-    | Some AS_SET -> Asn_set (cstruct_iter_to_list vs)
+    | Some AS_SET -> 
+      let l = cstruct_iter_to_list vs in
+      Asn_set (List.sort Int32.compare l)
     | Some AS_SEQ -> Asn_seq (cstruct_iter_to_list vs)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
@@ -357,7 +359,7 @@ let asp_segments_to_string asp_segments =
       String.concat "; " (List.map f asn_list)
     in
     match segment with 
-    | Asn_set asn_list -> sprintf "[%s]" (set_to_string (List.sort Int32.compare asn_list))
+    | Asn_set asn_list -> sprintf "[%s]" (set_to_string asn_list)
     | Asn_seq asn_list -> sprintf "%s" (seq_to_string asn_list)
   in
   String.concat "<-" (List.map f asp_segments)
@@ -376,7 +378,9 @@ let parse_aspath buf =
     match int_to_aspt t with
     | None -> 
       raise (Msg_fmt_err (Parse_update_msg_err Malformed_as_path))
-    | Some AS_SET -> Asn_set (cstruct_iter_to_list vs)
+    | Some AS_SET -> 
+      let l = cstruct_iter_to_list vs in
+      Asn_set (List.sort Int32.compare l)
     | Some AS_SEQ -> Asn_seq (cstruct_iter_to_list vs)
   in
   cstruct_iter_to_list (Cstruct.iter lenf pf buf)
@@ -468,7 +472,7 @@ let find_next_hop path_attrs =
   loop path_attrs
 ;;
 
-let path_attr_to_attr_t = function
+let pattr_to_typ = function
   | Origin _ -> Some ORIGIN
   | As_path _ -> Some AS_PATH
   | Next_hop _ -> Some NEXT_HOP
@@ -485,33 +489,15 @@ let path_attr_to_attr_t = function
 ;;
 
 let path_attrs_mem attr_t path_attrs = 
-  let f pa = path_attr_to_attr_t pa = Some attr_t in
+  let f pa = pattr_to_typ pa = Some attr_t in
   List.exists f path_attrs
 ;;
 
 let path_attrs_remove attr_t path_attrs = 
-  List.find_all (fun pa -> path_attr_to_attr_t pa <> Some attr_t) path_attrs 
+  List.find_all (fun pa -> pattr_to_typ pa <> Some attr_t) path_attrs 
 
 
 let rec path_attrs_to_string path_attrs = 
-  let path_attrs = 
-    (* Extract typ code *)
-    let f pa = 
-      match path_attr_to_attr_t pa with
-      | None -> 1000, pa
-      | Some typ -> attr_t_to_int typ, pa
-    in
-    let tmp = List.map f path_attrs in
-  
-    (* Sort using type code *)
-    let compare (tc_this, _) (tc_other, _) = tc_this - tc_other in
-    let sorted = List.sort compare tmp in
-
-    (* Extract *)
-    List.map (fun (_, pa) -> pa) sorted
-  in
-  
-
   let f path_attr acc =
     match path_attr with 
     | Origin v ->
@@ -641,32 +627,40 @@ let parse_path_attrs ?(caller=Normal) buf =
         Unknown (flags, b)
   in
 
-  let rec loop iter acc =
+  let rec iter_to_list iter acc =
     match iter () with
     | None -> acc
-    | Some pa ->
-      match path_attr_to_attr_t pa with
-      | None -> loop iter (pa::acc)
+    | Some attr ->
+      match pattr_to_typ attr with
+      | None -> 
+        (* This is an unknown attribute *)
+        iter_to_list iter ((1000, attr)::acc)
       | Some typ ->
-        if path_attrs_mem typ acc then 
+        let tc = attr_t_to_int typ in
+        if List.mem_assoc tc acc then
+          (* Found duplicated path attribute. *)
           raise (Msg_fmt_err (Parse_update_msg_err Malformed_attribute_list))
-        else loop iter (pa::acc)
+        else
+          iter_to_list iter ((tc, attr)::acc)
   in
 
-  let path_attrs = loop (Cstruct.iter lenf pf buf) [] in
+  let tc_and_attrs = iter_to_list (Cstruct.iter lenf pf buf) [] in
 
-  if not (path_attrs_mem ORIGIN path_attrs) then
-    let tc = attr_t_to_int ORIGIN in
-    raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  else if not (path_attrs_mem AS_PATH path_attrs) then
-    let tc = attr_t_to_int AS_PATH in
-    raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  else if not (path_attrs_mem NEXT_HOP path_attrs) then
-    let tc = attr_t_to_int NEXT_HOP in
-    raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  else 
-    (* This is a temporary workaround for ease of testing *)
-    List.rev path_attrs
+  (* Check if mandatory attributes present *)
+  let () =
+    if not (List.mem_assoc (attr_t_to_int ORIGIN) tc_and_attrs) then
+      let tc = attr_t_to_int ORIGIN in
+      raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
+    else if not (List.mem_assoc (attr_t_to_int AS_PATH) tc_and_attrs) then
+      let tc = attr_t_to_int AS_PATH in
+      raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
+    else if not (List.mem_assoc (attr_t_to_int NEXT_HOP) tc_and_attrs) then
+      let tc = attr_t_to_int NEXT_HOP in
+      raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
+  in
+
+  let sorted = List.sort (fun (tc1, _) (tc2, _) -> tc1 - tc2) tc_and_attrs in
+  List.map (fun (_, attr) -> attr) sorted
 ;;
 
 type update = {
