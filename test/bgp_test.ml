@@ -173,9 +173,12 @@ let test_update_only_nlri =
     ] in
 
     let path_attrs = [
-       Origin IGP;
-       As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
-       Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+      Origin IGP;
+      As_path [Asn_set [2_l; 5_l; 3_l]; Asn_seq [10_l; 20_l; 30_l]];
+      Next_hop (Ipaddr.V4.of_string_exn "192.168.1.253");
+      Med (Int32.of_int 10);
+      Local_pref (Int32.of_int 20);
+      Atomic_aggr;
     ] in 
     let u = Update {withdrawn = []; path_attrs; nlri} in
     test_parse_gen_combo u

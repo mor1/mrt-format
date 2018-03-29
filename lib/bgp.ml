@@ -601,7 +601,7 @@ let parse_path_attrs ?(caller=Normal) buf =
       else
         Med (Cstruct.BE.get_uint32 p 0)
     | Some ATOMIC_AGGR -> 
-      if flags.optional = false || flags.transitive = false then 
+      if flags.optional = true || flags.transitive = false then 
         let b = Cstruct.shift buf 1 in
         raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
       else Atomic_aggr
@@ -613,7 +613,7 @@ let parse_path_attrs ?(caller=Normal) buf =
     | Some MP_REACH_NLRI -> Mp_reach_nlri
     | Some MP_UNREACH_NLRI -> Mp_unreach_nlri
     | Some LOCAL_PREF -> 
-      if flags.optional = false then 
+      if flags.optional = true then 
         let b = Cstruct.shift buf 1 in
         raise (Msg_fmt_err (Parse_update_msg_err (Attribute_flags_error b)))
       else 
@@ -1261,10 +1261,10 @@ let fill_path_attrs_buffer buf path_attrs =
     | Local_pref v ->
       (* Well-known discretionary *)
       let flags = {
-        optional=false;
-        transitive=true;
-        partial=false;
-        extlen=false;
+        optional = false;
+        transitive = false;
+        partial = false;
+        extlen = false;
       } in
 
       let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
@@ -1277,10 +1277,10 @@ let fill_path_attrs_buffer buf path_attrs =
     | Atomic_aggr ->
       (* Well-known discretionary *)
       let flags = {
-        optional=false;
-        transitive=true;
-        partial=false;
-        extlen=false;
+        optional = false;
+        transitive = true;
+        partial = false;
+        extlen = false;
       } in
 
       let len_h = if flags.extlen then sizeof_fte else sizeof_ft in
