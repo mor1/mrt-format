@@ -441,37 +441,6 @@ type path_attr =
 
 type path_attrs = path_attr list
 
-
- let find_origin path_attrs =
-  let rec loop = function
-    | [] -> None
-    | hd::tl -> match hd with
-      | Origin v -> Some v
-      | _ -> loop tl
-  in
-  loop path_attrs
-;;
-    
-let find_aspath path_attrs =
-  let rec loop = function
-    | [] -> None
-    | hd::tl -> match hd with
-      | As_path v -> Some v 
-      | _ -> loop tl
-  in
-  loop path_attrs
-;;
-
-let find_next_hop path_attrs =
-  let rec loop = function
-    | [] -> None
-    | hd::tl -> match hd with
-      | Next_hop v -> Some v 
-      | _ -> loop tl
-  in
-  loop path_attrs
-;;
-
 let pattr_to_typ = function
   | Origin _ -> Some ORIGIN
   | As_path _ -> Some AS_PATH
@@ -487,6 +456,184 @@ let pattr_to_typ = function
   | Local_pref _ -> Some LOCAL_PREF
   | Unknown _ -> None
 ;;
+
+let attr_to_tc attr =
+  match pattr_to_typ attr with 
+  | None -> 1000
+  | Some v -> attr_t_to_int v
+;;
+
+ let find_origin path_attrs =
+  let rec loop = function
+    | [] -> 
+      Logs.err (fun m -> m "BGP attributes do not have ORIGIN.");
+      assert false
+    | hd::tl -> match hd with
+      | Origin v -> v
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+let set_origin path_attrs o =
+  let tc = attr_t_to_int ORIGIN in
+  let rec loop = function
+    | [] -> 
+      Logs.err (fun m -> m "BGP attributes do not have ORIGIN.");
+      assert false
+    | hd::tl -> match hd with
+      | Origin _ -> (Origin o)::tl
+      | attr -> 
+        if attr_to_tc attr > tc then begin
+          Logs.err (fun m -> m "BGP attributes do not have ORIGIN.");
+          assert false
+        end
+        else hd::(loop tl)
+  in
+  loop path_attrs
+;;
+    
+let find_as_path path_attrs =
+  let rec loop = function
+    | [] -> 
+      Logs.err (fun m -> m "BGP attributes do not have AS PATH.");
+      assert false
+    | hd::tl -> match hd with
+      | As_path v -> v 
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+let set_as_path path_attrs path =
+  let tc = attr_t_to_int AS_PATH in
+  let rec loop = function
+    | [] -> 
+      Logs.err (fun m -> m "BGP attributes do not have AS PATH.");
+      assert false
+    | hd::tl -> match hd with
+      | As_path _ -> (As_path path)::tl
+      | attr -> 
+        if attr_to_tc attr > tc then begin
+          Logs.err (fun m -> m "BGP attributes do not have AS PATH.");
+          assert false
+        end
+        else hd::(loop tl)
+  in
+  loop path_attrs
+;;
+
+let find_next_hop path_attrs =
+  let rec loop = function
+    | [] -> 
+      Logs.err (fun m -> m "BGP attributes do not have NEXT HOP.");
+      assert false
+    | hd::tl -> match hd with
+      | Next_hop v -> v 
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+let set_next_hop path_attrs nh =
+  let tc = attr_t_to_int NEXT_HOP in
+  let rec loop = function
+    | [] -> 
+      Logs.err (fun m -> m "BGP attributes do not have NEXT HOP.");
+      assert false
+    | hd::tl -> match hd with
+      | Next_hop _ -> (Next_hop nh)::tl
+      | attr -> 
+        if attr_to_tc attr > tc then begin
+          Logs.err (fun m -> m "BGP attributes do not have NEXT HOP.");
+          assert false
+        end
+        else hd::(loop tl)
+  in
+  loop path_attrs
+;;
+
+let find_med path_attrs =
+  let rec loop = function
+    | [] -> None
+    | hd::tl -> match hd with
+      | Med v -> Some v 
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+let set_med path_attrs med =
+  let tc = attr_t_to_int MED in
+  let rec loop = function
+    | [] -> begin
+      match med with
+      | None -> []
+      | Some v -> [Med v]
+    end
+    | (hd::tl) as l -> match hd with
+      | Med _ -> begin
+        match med with
+        | None -> tl
+        | Some v -> (Med v)::tl
+      end
+      | attr -> 
+        if attr_to_tc attr > tc then begin
+          match med with
+          | None -> l
+          | Some v -> (Med v)::l
+        end
+        else hd::(loop tl)
+  in
+  loop path_attrs
+;;
+
+let find_local_pref path_attrs =
+  let rec loop = function
+    | [] -> None
+    | hd::tl -> match hd with
+      | Local_pref v -> Some v 
+      | attr ->  loop tl
+  in
+  loop path_attrs
+;;
+
+let set_local_pref path_attrs lp =
+  let tc = attr_t_to_int LOCAL_PREF in
+  let rec loop = function
+    | [] -> begin
+      match lp with
+      | None -> []
+      | Some v -> [Local_pref v]
+    end
+    | (hd::tl) as l -> match hd with
+      | Local_pref _ -> begin
+        match lp with
+        | None -> tl
+        | Some v -> (Local_pref v)::tl
+      end
+      | attr -> 
+        if attr_to_tc attr > tc then begin
+          match lp with
+          | None -> l
+          | Some v -> (Local_pref v)::l
+        end
+        else hd::(loop tl)
+  in
+  loop path_attrs
+;;
+
+let atomic_aggr path_attrs = 
+  let rec loop = function
+    | [] -> false
+    | hd::tl -> match hd with
+      | Atomic_aggr -> true
+      | _ -> loop tl
+  in
+  loop path_attrs
+;;
+
+
 
 let path_attrs_mem attr_t path_attrs = 
   let f pa = pattr_to_typ pa = Some attr_t in

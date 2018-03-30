@@ -34,25 +34,11 @@ let test_find_origin () =
     Origin EGP;
     As_path [Asn_seq [1_l]];
   ] in
-  assert (find_origin path_attrs = Some Bgp.EGP);
+  assert (find_origin path_attrs = EGP);
 
-  let path_attrs = [
-    As_path [Asn_seq [1_l]];
-  ] in
-  assert (find_origin path_attrs = None);
-;;
-
-let test_find_origin () =
-  let path_attrs = [
-    Origin EGP;
-    As_path [Asn_seq [1_l]];
-  ] in
-  assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
-  
-  let path_attrs = [
-    Origin EGP;
-  ] in
-  assert (find_aspath path_attrs = None);
+  let tmp = set_origin path_attrs IGP in
+  assert (find_origin tmp = IGP);
+  assert (tmp = [Origin IGP; As_path [Asn_seq [1_l]];]);
 ;;
 
 let test_find_aspath () =
@@ -60,32 +46,66 @@ let test_find_aspath () =
     Origin EGP;
     As_path [Asn_seq [1_l]];
   ] in
-  assert (find_aspath path_attrs = Some [Asn_seq [1_l]]);
+  assert (find_as_path path_attrs = [Asn_seq [1_l]]);
 
-  let path_attrs = [ Origin EGP; ] in
-  assert (find_aspath path_attrs = None);
+  let p2 = set_as_path path_attrs [Asn_seq [1_l; 2_l]] in
+  assert (find_as_path p2 = [Asn_seq [1_l; 2_l]]);
+  assert (p2 = [ Origin EGP; As_path [Asn_seq [1_l; 2_l]];]);
 ;;
 
 let test_find_next_hop () =
-
   let id = Ipaddr.V4.of_string_exn "172.19.10.1" in
   let path_attrs = [
     Origin EGP;
     As_path [Asn_seq [1_l]];
     Next_hop id;
   ] in
-  assert (find_next_hop path_attrs = Some id);
+  assert (find_next_hop path_attrs = id);
 
+  let id2 = Ipaddr.V4.of_string_exn "172.19.10.2" in
+  let p2 = set_next_hop path_attrs id2 in
+  assert (find_next_hop p2 = id2);
 
-  let path_attrs = [
-    ( Origin EGP);
-    ( As_path [Asn_seq [1_l]]);
+  let p3 = [
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
+    Next_hop id2;
   ] in
-  assert (find_next_hop path_attrs = None);
+  assert (p2 = p3)
 ;;
 
-let test_path_attrs_mem () =
+let test_find_med () =
+  let path_attrs = [
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
+    Next_hop (Ipaddr.V4.of_string_exn "172.19.10.1");
+  ] in
+  assert (find_med path_attrs = None);
 
+  let p2 = set_med path_attrs (Some 10_l) in
+  assert (find_med p2 = Some 10_l);
+
+  let p3 = set_med p2 None in
+  assert (find_med p3 = None);
+;;
+  
+let test_find_local_pref () =
+  let path_attrs = [
+    Origin EGP;
+    As_path [Asn_seq [1_l]];
+    Next_hop (Ipaddr.V4.of_string_exn "172.19.10.1");
+  ] in
+  assert (find_local_pref path_attrs = None);
+
+  let p2 = set_local_pref path_attrs (Some 10_l) in
+  assert (find_local_pref p2 = Some 10_l);
+
+  let p3 = set_local_pref p2 None in
+  assert (find_local_pref p3 = None);
+;;
+
+
+let test_path_attrs_mem () =
   let path_attrs = [
     ( Origin EGP);
     ( As_path [Asn_seq [1_l]]);
@@ -508,17 +528,15 @@ let test_parse_pattrs () =
   
 
 
-
-
-
 let () =
   Printexc.record_backtrace true;
-
   run "bgp" [
     "util", [
       test_case "test find_origin" `Slow test_find_origin;
       test_case "test find_aspath" `Slow test_find_aspath;
       test_case "test find_next_hop" `Slow test_find_next_hop;
+      test_case "test find_med" `Slow test_find_med;
+      test_case "test find_local_pref" `Slow test_find_local_pref;
       test_case "test path_attrs_mem" `Slow test_path_attrs_mem;
       test_case "test path_attrs_remove" `Slow test_path_attrs_remove;
       test_case "test path_attrs_to_string" `Slow test_path_attrs_to_string;

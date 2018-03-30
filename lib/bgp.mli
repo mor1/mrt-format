@@ -178,9 +178,19 @@ val len_path_attrs_buffer : path_attrs -> int
 val len_update_buffer : update -> int
 
 (* Util functions related to path_attrs *)
-val find_origin : path_attrs -> origin option
-val find_aspath : path_attrs -> asp_segment list option
-val find_next_hop : path_attrs -> Ipaddr.V4.t option
+val find_origin : path_attrs -> origin
+val find_as_path : path_attrs -> asp_segment list
+val find_next_hop : path_attrs -> Ipaddr.V4.t
+val find_med: path_attrs -> int32 option
+val find_local_pref: path_attrs -> int32 option
+val atomic_aggr: path_attrs -> bool
+
+val set_origin : path_attrs -> origin -> path_attrs
+val set_as_path : path_attrs -> asp_segment list -> path_attrs
+val set_next_hop : path_attrs -> Ipaddr.V4.t -> path_attrs
+val set_med: path_attrs -> int32 option -> path_attrs
+val set_local_pref: path_attrs -> int32 option -> path_attrs
+
 val path_attrs_mem : attr_t -> path_attrs -> bool
 val path_attrs_remove : attr_t -> path_attrs -> path_attrs
 
@@ -188,3 +198,5 @@ val path_attrs_remove : attr_t -> path_attrs -> path_attrs
 val parse_error_to_string : parse_error -> string
 
 val equal: t -> t -> bool
+
+val origin_to_int: origin -> int
