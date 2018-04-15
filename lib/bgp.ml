@@ -794,7 +794,7 @@ let parse_path_attrs ?(caller=Normal) buf =
   let tc_and_attrs = iter_to_list (Cstruct.iter lenf pf buf) [] in
 
   (* Check if mandatory attributes present *)
-  let () =
+  (* let () =
     if not (List.mem_assoc (attr_t_to_int ORIGIN) tc_and_attrs) then
       let tc = attr_t_to_int ORIGIN in
       raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
@@ -804,7 +804,7 @@ let parse_path_attrs ?(caller=Normal) buf =
     else if not (List.mem_assoc (attr_t_to_int NEXT_HOP) tc_and_attrs) then
       let tc = attr_t_to_int NEXT_HOP in
       raise (Msg_fmt_err (Parse_update_msg_err (Missing_wellknown_attribute tc)))
-  in
+  in *)
 
   let sorted = List.sort (fun (tc1, _) (tc2, _) -> tc1 - tc2) tc_and_attrs in
   List.map (fun (_, attr) -> attr) sorted
