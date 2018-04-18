@@ -14,7 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type header
+type header = {
+  ts_sec: int32;
+  ts_usec: int32;
+}
 val header_to_string : header -> string
 
 type payload =
@@ -22,8 +25,10 @@ type payload =
   | Table of Table.t
   | Table2 of Table2.t
   | Unknown of Cstruct.t
+
 val payload_to_string : payload -> string
 
 type t = header * payload
 val to_string : t -> string
 val parse : Cstruct.t -> t Cstruct.iter
+

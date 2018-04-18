@@ -7,6 +7,8 @@
   (preprocess (pps (ppx_cstruct)))
   (flags (:standard -w "A-44-48-52-32-27" -safe-string))
   (libraries (
+      mrt-format.bgp
+      result
       cstruct
   ))
 ))

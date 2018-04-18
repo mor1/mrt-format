@@ -1,0 +1,6 @@
+PKG cstruct logs cstruct.ppx sexplib ipaddr mrt-format alcotest cstruct-lwt
+S lib/**
+S test/**
+
+B _build/lib/**
+B _build/test/**

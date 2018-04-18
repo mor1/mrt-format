@@ -14,8 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-type tc = IP4 | IP6
+type tc = 
+  | IP4 
+  | IP6
+  | UNKNOWN of int
+
 val int_to_tc: int -> tc
+val tc_to_int: tc -> int
 val tc_to_string: tc -> string
 
 val sizeof_ip4: int
