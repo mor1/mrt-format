@@ -1105,7 +1105,7 @@ let parse_buffer_to_t buf =
     | None -> 
       Parser_log.err (fun m -> m "This is a marker. Something unexpected occurs in Bgp.parse_buffer_to_t."); 
       assert false
-    | Some it -> Ok it 
+    | Some it -> Result.Ok it 
   with
   | Msg_fmt_err err -> Error (Msg_fmt_error err)
   | Notif_fmt_err err -> Error (Notif_fmt_error err)
