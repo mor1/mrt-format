@@ -14,8 +14,8 @@ build: [
 ]
 
 depends: [
-  "ocamlfind"   {build}
   "alcotest"    {test}
   "cstruct"     {>= "1.0.1"}
+  "ocamlfind"   {build}
   "ppx_cstruct" {build}
 ]

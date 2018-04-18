@@ -1,3 +1,7 @@
+### 0.3.0 (2018-04-18)
+
+  * Extensive additions to BGP parsing support from @jimyuan1995
+
 ### 0.2.0 (2017-10-27)
 
   * Upgrade to use `jbuilder`, modern `opam`, `topkg`, etc
