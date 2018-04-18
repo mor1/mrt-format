@@ -16,9 +16,9 @@
 
 open Printf
 
-type tc = 
-  | UNICAST 
-  | MULTICAST 
+type tc =
+  | UNICAST
+  | MULTICAST
   | UNKNOWN of int
 
 let tc_to_int = function

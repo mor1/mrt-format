@@ -17,8 +17,8 @@
 open Printf
 open Operators
 
-type tc = 
-  | IP4 
+type tc =
+  | IP4
   | IP6
   | UNKNOWN of int
 let tc_to_int = function
