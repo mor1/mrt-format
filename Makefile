@@ -3,37 +3,35 @@ REPO = mrt-format
 
 .PHONY: build
 build:
-	jbuilder build --dev
+	dune build
 
 .PHONY: clean
 clean:
-	jbuilder clean
+	dune clean
 
 .PHONY: test
 test:
-	jbuilder runtest --dev
+	dune runtest
 
 .PHONY: install
 install:
-	jbuilder build @install
-	jbuilder install
+	dune build @install
+	dune install
 
 .PHONY: uninstall
 uninstall:
-	jbuilder uninstall
+	dune uninstall
 
 .PHONY: distrib
 distrib:
-	[ -x $$(opam config var root)/plugins/opam-publish/repos/$(REPO) ] || \
-	  opam-publish repo add $(REPO) $(ORG)/$(REPO)
-	topkg tag
-	topkg distrib
+	dune-release tag
+	dune-release distrib
 
 .PHONY: public
 publish:
-	topkg publish
-	topkg opam pkg
-	topkg opam submit
+	dune-release publish
+	dune-release opam pkg
+	dune-release opam submit
 
 .PHONY: release
 release: distrib publish
