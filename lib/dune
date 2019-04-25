@@ -5,4 +5,10 @@
  (preprocess
   (pps ppx_cstruct))
  (flags :standard -w A-27-32-4-39-8-44-3-6)
- (libraries cstruct ipaddr logs result))
+ (libraries
+  bigarray
+  cstruct
+  ipaddr
+  logs
+  result
+  ))

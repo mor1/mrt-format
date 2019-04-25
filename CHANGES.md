@@ -1,3 +1,7 @@
+### 0.3.1 (2019-04-25)
+
+  * Add explicit dependency on `bigarray`
+
 ### 0.3.0 (2018-04-18)
 
   * Extensive additions to BGP parsing support from @jimyuan1995
